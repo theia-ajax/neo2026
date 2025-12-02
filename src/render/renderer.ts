@@ -12,9 +12,8 @@ import {
 	quitIfFeaturesNotAvailable,
 	quitIfWebGPUNotAvailable,
 	getDevicePixelContentBoxSize
-} from '@/render/renderer_utils';
-import type { GameState } from '@/gamestate.ts';
-import * as debug from "@/debug/debug.ts"
+} from '@/render/rendererUtils';
+import type { GameState } from '@/gamestate';
 import { SampleBuffer } from '@/util';
 
 export async function initRenderer(canvas: HTMLCanvasElement) {

@@ -1,8 +1,8 @@
 import { GUI } from "dat.gui"
-import * as debug from "@/debug/debug.ts"
-import { GameState } from "@/gamestate.ts"
-import { Renderer } from "@/render/renderer.ts"
-import { SampleBuffer } from "@/util.ts"
+import * as debug from "@/debug/debug"
+import { GameState } from "@/gamestate"
+import { Renderer } from "@/render/renderer"
+import { SampleBuffer } from "@/util"
 
 interface GameCallback {
 	(deltaTime: number): void;
