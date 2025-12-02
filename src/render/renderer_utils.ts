@@ -118,3 +118,18 @@ const fail = (() => {
 		throw new Error(message);
 	};
 })();
+
+export function getDevicePixelContentBoxSize(entry: ResizeObserverEntry) {
+	if (!entry.devicePixelContentBoxSize) {
+		// fallback for safari
+		return {
+			width: entry.contentBoxSize[0].inlineSize * devicePixelRatio,
+			height: entry.contentBoxSize[0].blockSize * devicePixelRatio,
+		};
+	}
+
+	return {
+		width: entry.devicePixelContentBoxSize[0].inlineSize,
+		height: entry.devicePixelContentBoxSize[0].blockSize,
+	};
+}

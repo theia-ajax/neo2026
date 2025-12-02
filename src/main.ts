@@ -1,5 +1,5 @@
 import '@/style.css'
-import { initRenderer } from "@/render/renderer"
+import { initRenderer, Renderer } from "@/render/renderer"
 import { Game } from "@/game.ts"
 
 async function init() {
