@@ -8,7 +8,7 @@ import {
 } from '@meshes/cube';
 import basicVertWGSL from '@shaders/basic.vert.wgsl?raw'
 import vertexPositionColorWGSL from '@shaders/vertexPositionColor.frag.wgsl?raw'
-import { quitIfWebGPUNotAvailable } from '@/renderer/renderer_utils';
+import { quitIfWebGPUNotAvailable } from '@/render/renderer_utils';
 import type { GameState } from '@/gamestate.ts';
 
 export async function initRenderer(canvas: HTMLCanvasElement) {

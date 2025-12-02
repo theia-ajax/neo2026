@@ -1,9 +1,9 @@
 import { defineConfig } from 'vite'
 import path from "path"
-import crossOriginIsolation from 'vite-plugin-cross-origin-isolation'
 
 export default defineConfig({
 	root: 'src',
+	base: 'https://theia.gay/neo',
 	build: {
 		outDir: '../dist',
 		emptyOutDir: true,
