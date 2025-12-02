@@ -24,16 +24,5 @@ export default defineConfig({
 			"@shaders": path.resolve(__dirname, "src/assets/shaders"),
 			"@meshes": path.resolve(__dirname, "src/assets/meshes")
 		},
-	},
-	plugins: [
-		{
-			name: "configure-response-headers",
-			configureServer: (server) => {
-				server.middlewares.use((_req, res, next) => {
-					res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
-					res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-					next();
-				});
-			},
-		}],
+	}
 });

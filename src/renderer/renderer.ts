@@ -9,6 +9,7 @@ import {
 import basicVertWGSL from '@shaders/basic.vert.wgsl?raw'
 import vertexPositionColorWGSL from '@shaders/vertexPositionColor.frag.wgsl?raw'
 import { quitIfWebGPUNotAvailable } from '@/renderer/renderer_utils';
+import type { GameState } from '@/gamestate.ts';
 
 export async function initRenderer(canvas: HTMLCanvasElement) {
 	const adapter = await navigator.gpu?.requestAdapter({
@@ -137,13 +138,13 @@ export class Renderer {
 		}
 	}
 
-	public draw(time: number) {
+	public draw(gameState: GameState) {
 		const aspect = this.context.canvas.width / this.context.canvas.height;
 		const projection = mat4.perspective((2 * Math.PI) / 5, aspect, 1, 100.0);
 		const view = mat4.identity();
 		mat4.translate(view, vec3.fromValues(0, 0, -4), view);
 
-		const model = mat4.rotate(mat4.identity(), vec3.create(0, 1, 0), time);
+		const model = mat4.rotate(mat4.identity(), vec3.create(0, 1, 0), gameState.state);
 
 		mat4.multiply(projection, mat4.multiply(view, model), this.modelViewProjection);
 

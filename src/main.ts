@@ -20,6 +20,7 @@ import vertexPositionColorWGSL from '@shaders/vertexPositionColor.frag.wgsl?raw'
 import { quitIfWebGPUNotAvailable } from "@/renderer/renderer_utils.ts"
 import { initRenderer, Renderer } from "@/renderer/renderer.ts"
 import * as debug from "@/debug/debug.ts"
+import { GameState } from "@/gamestate.ts"
 
 async function init() {
 	var canvas = document.querySelector("#canvas") as HTMLCanvasElement;
@@ -39,17 +40,60 @@ function startInit() {
 	await startInit();
 })();
 
+
+interface GameCallback {
+    (deltaTime: number): void;
+}
+
+// interface FrameRequestCallback {
+//     (time: DOMHighResTimeStamp): void;
+// }
+
+class GameCallbackDriver {
+	public interval: number = 0;
+	public callback: GameCallback;
+	private accumulator: number = 0;
+	private maxCallsPerUpdate: number = 10;
+
+	constructor(callback: GameCallback, callsPerSecond: number = 0)
+	{
+		this.interval = (callsPerSecond > 0) ? 1.0 / callsPerSecond : 0;
+		if (this.interval == 0) {
+			this.maxCallsPerUpdate = 1;
+		}
+		this.callback = callback;
+		this.accumulator = 0;
+	}
+
+	public update(deltaTime: number)
+	{
+		this.accumulator += deltaTime;
+		var safetyValve = this.maxCallsPerUpdate;
+		while (this.accumulator >= this.interval && safetyValve > 0) {
+			var dt = this.interval > 0 ? this.interval : deltaTime;
+			this.callback(dt);
+			safetyValve--;
+			this.accumulator -= this.interval;
+		}
+	}
+}
+
 class Game {
-	private frame: number = 0;
-	private framesThisSecond: number = 0;
-	private framesPerSecond: number = 0;
-	private elapsedSeconds: number = 0;
-	private secondTimer: number = 0;
-	private lastClock: number = 0;
+	private gameState: GameState;
+	private currentTime: number = 0;
+	private elapsedTime: number = 0;
+	private gameCallbacks: Array<GameCallbackDriver>;
 	private renderer: Renderer;
 
 	constructor(renderer: Renderer) {
+		this.gameState = new GameState();
 		this.renderer = renderer;
+
+		this.gameCallbacks = [
+			new GameCallbackDriver((dt: number) => { this.update(dt); }, 0),
+			new GameCallbackDriver((dt: number) => { this.fixedUpdate(dt); }, 60),
+			new GameCallbackDriver((dt: number) => { this.render(dt); }, 0),
+		];
 
 		const settings = {
 			showDebug: debug.getVisible(),
@@ -63,27 +107,37 @@ class Game {
 		requestAnimationFrame((timestamp) => { this.mainLoop(timestamp) });
 	}
 
-	private mainLoop(timestamp) {
-		const clock = window.performance.now() * 1000.0;
-		const elapsed = (this.lastClock !== 0) ? clock - this.lastClock : 0;
-		const deltaTime = elapsed / 1000000.0;
-		this.lastClock = clock;
-		this.secondTimer += deltaTime;
-		if (this.secondTimer >= 1.0) {
-			this.secondTimer -= 1.0;
-			this.framesPerSecond = this.framesThisSecond;
-			this.framesThisSecond = 0;
-		}
-		this.elapsedSeconds += deltaTime;
-		this.renderer.draw(this.elapsedSeconds);
-		this.framesThisSecond++;
+	private setCurrentTime(newTime: DOMHighResTimeStamp) {
+		this.currentTime = newTime * 1000.0;
+	}
 
-		debug.log(`Frame: ${this.frame}`);
-		debug.log(`FPS: ${this.framesPerSecond}`);
-		debug.log(`Elapsed Time (seconds): ${this.elapsedSeconds}`);
-		
-		this.frame++;
+	private update(deltaTime: number) {
+		debug.log(`Elapsed Time (seconds): ${this.elapsedTime}`);
 		debug.flush();
+	}
+	
+	private fixedUpdate(deltaTime: number) {
+		this.gameState.state += deltaTime;
+	}
+
+	private render(deltaTime: number) {
+		this.renderer.draw(this.gameState);
+	}
+
+	private mainLoop(newTime: DOMHighResTimeStamp) {
 		requestAnimationFrame((timestamp) => { this.mainLoop(timestamp) });
+
+		if (!this.currentTime) {
+			this.setCurrentTime(newTime);
+		}
+
+		const deltaTime = (newTime * 1000 - this.currentTime) / 1000000;
+		this.elapsedTime += deltaTime;
+
+		for (var callbackIndex in this.gameCallbacks) {
+			this.gameCallbacks[callbackIndex].update(deltaTime);
+		}
+
+		this.setCurrentTime(newTime);
 	}
 }
