@@ -1,0 +1,17 @@
+* { margin: 0; padding: 0;}
+
+body, html { height:100%; }
+
+#debug {
+    position: relative;
+}
+
+#debug canvas, #overlay {
+    position: absolute;
+}
+
+#canvas {
+    position:absolute;
+    width:100%;
+    height:100%;
+}

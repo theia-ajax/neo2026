@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
+    "target": "esnext",
     "useDefineForClassFields": true,
     "module": "ESNext",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
@@ -8,7 +8,8 @@
     "skipLibCheck": true,
 
     /* Bundler mode */
-    "moduleResolution": "bundler",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
 
@@ -19,12 +20,18 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": false,
     "noUncheckedSideEffectImports": false,
+    
+    "baseUrl": "./",
     "paths": {
-      "@shaders/*": ["./shaders/*"]
+      "@/*": ["src/*"],
+      "@assets/*": ["src/assets/*"],
+      "@shaders/*": ["src/assets/shaders/*"],
+      "@meshes/*": ["src/assets/meshes/*"]
     },
     
     "outDir": "./dist/",
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "noEmit": true
   },
   "include": ["src"]
 }
