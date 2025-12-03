@@ -8,76 +8,17 @@ import {
 } from '@meshes/cube';
 import basicVertWGSL from '@shaders/basic.vert.wgsl?raw'
 import vertexPositionColorWGSL from '@shaders/vertexPositionColor.frag.wgsl?raw'
-import { 
-	quitIfFeaturesNotAvailable,
-	quitIfWebGPUNotAvailable,
-	getDevicePixelContentBoxSize
-} from '@/render/rendererUtils';
-import type { GameState } from '@/gamestate';
+import sampleTextureMixColorWGSL from '@shaders/sampleTextureMixColor.frag.wgsl?raw'
+import { getDevicePixelContentBoxSize } from '@/render/rendererUtils';
+import { GameState } from '@/gamestate';
 import { SampleBuffer } from '@/util';
-
-export async function initRenderer(canvas: HTMLCanvasElement) {
-	const adapter = await navigator.gpu?.requestAdapter({
-		featureLevel: 'compatibility',
-	}) as GPUAdapter;
-	quitIfFeaturesNotAvailable(adapter, ['timestamp-query']);
-	const device = await adapter?.requestDevice({
-		requiredFeatures: [
-			'timestamp-query'
-		]
-	}) as GPUDevice;
-	quitIfWebGPUNotAvailable(adapter, device);
-	return new Renderer(canvas, adapter, device)
-}
+import { createTextureBindGroup, createTextureFromImage } from './texture';
 
 // webgpu only supports 1 or 4 and 1 fails with the following error on chrome/windows:
 // Cannot set [TextureView of Texture "D3DImageBacking_D3DSharedImage_WebGPUSwapBufferProvider_Pid:11684"] as a resolve target when the color attachment [TextureView of Texture "Render Target Texture"] has a sample count of 1.
 const MSAA_SAMPLE_COUNT: number = 4;
 
-class RenderTiming {
-	querySet: GPUQuerySet;
-	resolveBuffer: GPUBuffer;
-	resultBuffer: GPUBuffer;
-	gpuSample: SampleBuffer;
-
-	constructor(device: GPUDevice) {
-		this.gpuSample = new SampleBuffer(60);
-
-		this.querySet = device.createQuerySet({
-			type: 'timestamp',
-			count: 2,
-		});
-
-		this.resolveBuffer = device.createBuffer({
-			size: this.querySet.count * 8, // uint64 per querySet
-			usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC,
-		});
-		this.resultBuffer = device.createBuffer({
-			size: this.resolveBuffer.size,
-			usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-		});
-	}
-
-	public start(commandEncoder: GPUCommandEncoder) {
-		commandEncoder.resolveQuerySet(this.querySet, 0, this.querySet.count, this.resolveBuffer, 0);
-		if (this.resultBuffer.mapState === 'unmapped') {
-			commandEncoder.copyBufferToBuffer(this.resolveBuffer, 0, this.resultBuffer, 0, this.resultBuffer.size);
-		}
-	}
-
-	public finish() {
-		if (this.resultBuffer.mapState === 'unmapped') {
-			this.resultBuffer.mapAsync(GPUMapMode.READ).then(() => {
-				const times = new BigUint64Array(this.resultBuffer.getMappedRange());
-				this.gpuSample.record(Number(times[1] - times[0]));
-				this.resultBuffer.unmap();
-			});
-		}
-	}
-}
-
 export class Renderer {
-	private adapter: GPUAdapter;
 	private device: GPUDevice;
 	private context: GPUCanvasContext;
 	private pipeline: GPURenderPipeline;
@@ -90,9 +31,11 @@ export class Renderer {
 	private modelViewProjection: Mat4;
 	private timing: RenderTiming;
 	private resizeObserver: ResizeObserver;
+	private sampler: GPUSampler;
 
-	constructor(canvas: HTMLCanvasElement, adapter: GPUAdapter, device: GPUDevice) {
-		this.adapter = adapter;
+	constructor(canvas: HTMLCanvasElement, device: GPUDevice, gameState: GameState) {
+		console.log("Creating Renderer");
+
 		this.device = device;
 		this.context = canvas.getContext('webgpu') as GPUCanvasContext;
 		this.modelViewProjection = mat4.create();
@@ -139,7 +82,7 @@ export class Renderer {
 			},
 			fragment: {
 				module: this.device.createShaderModule({
-					code: vertexPositionColorWGSL,
+					code: sampleTextureMixColorWGSL,
 				}),
 				targets: [
 					{
@@ -163,6 +106,11 @@ export class Renderer {
 
 		this.onCanvasResize(canvas);
 
+		this.sampler = device.createSampler({
+			minFilter: 'nearest',
+			magFilter: 'nearest',
+		});
+
 		this.uniformBuffer = device.createBuffer({
 			size: 4 * 16,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -177,6 +125,14 @@ export class Renderer {
 						buffer: this.uniformBuffer,
 					},
 				},
+				{
+					binding: 1,
+					resource: this.sampler,
+				},
+				{
+					binding: 2,
+					resource: gameState.texture.createView(),
+				}
 			],
 		});
 
@@ -273,3 +229,44 @@ export class Renderer {
 	public get gpuSample() { return this.timing.gpuSample; }
 }
 
+class RenderTiming {
+	querySet: GPUQuerySet;
+	resolveBuffer: GPUBuffer;
+	resultBuffer: GPUBuffer;
+	gpuSample: SampleBuffer;
+
+	constructor(device: GPUDevice) {
+		this.gpuSample = new SampleBuffer(60);
+
+		this.querySet = device.createQuerySet({
+			type: 'timestamp',
+			count: 2,
+		});
+
+		this.resolveBuffer = device.createBuffer({
+			size: this.querySet.count * 8, // uint64 per querySet
+			usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC,
+		});
+		this.resultBuffer = device.createBuffer({
+			size: this.resolveBuffer.size,
+			usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+		});
+	}
+
+	public start(commandEncoder: GPUCommandEncoder) {
+		commandEncoder.resolveQuerySet(this.querySet, 0, this.querySet.count, this.resolveBuffer, 0);
+		if (this.resultBuffer.mapState === 'unmapped') {
+			commandEncoder.copyBufferToBuffer(this.resolveBuffer, 0, this.resultBuffer, 0, this.resultBuffer.size);
+		}
+	}
+
+	public finish() {
+		if (this.resultBuffer.mapState === 'unmapped') {
+			this.resultBuffer.mapAsync(GPUMapMode.READ).then(() => {
+				const times = new BigUint64Array(this.resultBuffer.getMappedRange());
+				this.gpuSample.record(Number(times[1] - times[0]));
+				this.resultBuffer.unmap();
+			});
+		}
+	}
+}

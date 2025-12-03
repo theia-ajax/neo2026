@@ -3,14 +3,12 @@ import * as debug from "@/debug/debug"
 import { GameState } from "@/gamestate"
 import { Renderer } from "@/render/renderer"
 import { SampleBuffer } from "@/util"
+import { AssetDatabase } from "@assets/assetDatabase"
+import {  createTextureFromImage } from "@/render/texture"
 
 interface GameCallback {
 	(deltaTime: number): void;
 }
-
-// interface FrameRequestCallback {
-//     (time: DOMHighResTimeStamp): void;
-// }
 
 class GameCallbackDriver {
 	public name: string;
@@ -48,29 +46,30 @@ class GameCallbackDriver {
 }
 
 export class Game {
+	private canvas: HTMLCanvasElement;
+	private device: GPUDevice;
 	private gameState: GameState;
+	private renderer: Renderer;
+	private assets: AssetDatabase;
 	private currentTime: number = 0;
 	private elapsedTime: number = 0;
 	private gameCallbacks: Array<GameCallbackDriver>;
-	private renderer: Renderer;
 	private cpuSampler: SampleBuffer;
 	private fpsSampler: SampleBuffer;
 
-	constructor(renderer: Renderer) {
+	constructor(canvas: HTMLCanvasElement, device: GPUDevice, assets: AssetDatabase) {
+		this.canvas = canvas;
+		this.device = device;
+		this.assets = assets;
+		
+		this.gameState = new GameState();
+		this.gameState.texture = createTextureFromImage(this.device, this.assets.getAsset("testimage").image);
+
+		this.renderer = new Renderer(this.canvas, this.device, this.gameState);
+		
 		this.cpuSampler = new SampleBuffer(60);
 		this.fpsSampler = new SampleBuffer(60);
-
-		this.gameState = new GameState();
-		this.renderer = renderer;
-
-		this.gameCallbacks = [
-			new GameCallbackDriver("Pre Frame", (dt: number) => { this.preFrame(dt); }, 0),
-			new GameCallbackDriver("Update", (dt: number) => { this.update(dt); }, 0),
-			new GameCallbackDriver("Fixed Update", (dt: number) => { this.fixedUpdate(dt); }, 240),
-			new GameCallbackDriver("Render", (dt: number) => { this.render(dt); }, 0),
-			new GameCallbackDriver("Post Frame", (dt: number) => { this.postFrame(dt); }, 0),
-		];
-
+		
 		const settings = {
 			showDebug: debug.getVisible(),
 		};
@@ -79,7 +78,15 @@ export class Game {
 		gui.add(settings, 'showDebug').onChange(() => {
 			debug.setVisible(settings.showDebug);
 		});
-
+		
+		this.gameCallbacks = [
+			new GameCallbackDriver("Pre Frame", (dt: number) => { this.preFrame(dt); }),
+			new GameCallbackDriver("Update", (dt: number) => { this.update(dt); }),
+			new GameCallbackDriver("Fixed Update", (dt: number) => { this.fixedUpdate(dt); }, 240),
+			new GameCallbackDriver("Render", (dt: number) => { this.render(dt); }),
+			new GameCallbackDriver("Post Frame", (dt: number) => { this.postFrame(dt); }),
+		];
+		
 		requestAnimationFrame((timestamp) => { this.mainLoop(timestamp) });
 	}
 
