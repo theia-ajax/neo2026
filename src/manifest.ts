@@ -1,0 +1,15 @@
+import type { AssetDescriptor, AssetManifest } from "./assets/assetDatabase";
+
+export const GlobalAssetManifest: AssetManifest = {
+	assets: [
+		{
+			name: "testimage",
+			type: "IMAGE",
+			url: new URL('textures/testimage.png', import.meta.url),
+			importConfig: {
+				type: "IMAGE",
+				textureFormat: 'rgba8unorm',
+			}
+		}
+	]
+}

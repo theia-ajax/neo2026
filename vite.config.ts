@@ -4,12 +4,14 @@ import path from "path"
 export default defineConfig({
 	root: 'src',
 	base: 'https://theia.gay/neo',
+	publicDir: 'public',
 	build: {
 		outDir: '../dist',
 		emptyOutDir: true,
 		sourcemap: true,
 		minify: 'esbuild',
-		assetsDir: 'assets',
+		assetsDir: '.',
+		emitAssets: true,
 		rollupOptions: {
 			input: path.resolve(__dirname, 'src/index.html'),
 			output: {

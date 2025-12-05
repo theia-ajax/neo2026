@@ -1,7 +1,6 @@
 
 export type AssetType = "IMAGE";
 
-const ASSETS_ROOT: string = "neo/assets/";
 
 type ImageAssetImportConfig = {
 	type: "IMAGE";
@@ -17,7 +16,7 @@ type AssetImportConfig =
 export interface AssetDescriptor {
 	name: string;
 	type: AssetType;
-	path: string;
+	url: URL;
 	importConfig: AssetImportConfig;
 }
 
@@ -49,9 +48,6 @@ interface AssetLoadCallback {
 	(descriptor: AssetDescriptor): Promise<Asset>;
 }
 
-function resolveAssetPath(path: string): string {
-	return `${ASSETS_ROOT}${path}`;
-}
 
 function imageAssetCreateTexture(asset: ImageAsset, descriptor: AssetDescriptor, device: GPUDevice) {
 	asset.texture = device.createTexture({
@@ -75,9 +71,8 @@ async function loadImageAsset(descriptor: AssetDescriptor): Promise<ImageAsset> 
 		image: null,
 	};
 	
-	console.log("fetch");
-	const response = await fetch(resolveAssetPath(descriptor.path));
-	console.log("createImageBitmap");
+	console.log(descriptor.url.href);
+	const response = await fetch(descriptor.url);
 	asset.image = await createImageBitmap(await response.blob());
 	
 	return asset;
