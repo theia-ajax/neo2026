@@ -9,6 +9,7 @@ async function init() {
 	var canvas = document.querySelector("#canvas") as HTMLCanvasElement;
 	canvas.width = canvas.clientWidth * window.devicePixelRatio;
 	canvas.height = canvas.clientHeight * window.devicePixelRatio;
+	canvas.addEventListener("contextmenu", (ev) => ev.preventDefault());
 
 	const adapter = await navigator.gpu?.requestAdapter({
 		featureLevel: 'compatibility',

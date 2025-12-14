@@ -1,3 +1,5 @@
+import { UNIFORM_BIND_GROUP_LAYOUT_IDS } from "./uniforms";
+
 export function createTextureFromImage(device: GPUDevice, image: ImageBitmap): GPUTexture {
 	const texture = device.createTexture({
 		size: [image.width, image.height],
@@ -19,7 +21,7 @@ export function createTextureBindGroup(
 	pipeline: GPURenderPipeline,
 	texture: GPUTexture,
 	sampler: GPUSampler,
-	groupIndex: number
+	groupIndex: number = UNIFORM_BIND_GROUP_LAYOUT_IDS["texture"]
 ): GPUBindGroup {
 	const bindGroup = device.createBindGroup({
 		label: "Textures",

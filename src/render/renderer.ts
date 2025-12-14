@@ -13,6 +13,7 @@ import { getDevicePixelContentBoxSize } from '@/render/rendererUtils';
 import { GameState } from '@/gamestate';
 import { SampleBuffer } from '@/util';
 import { createTextureBindGroup, createTextureFromImage } from './texture';
+import { getDefaultRenderPipelineDescriptor } from '@/render/renderPipelines';
 
 // webgpu only supports 1 or 4 and 1 fails with the following error on chrome/windows:
 // Cannot set [TextureView of Texture "D3DImageBacking_D3DSharedImage_WebGPUSwapBufferProvider_Pid:11684"] as a resolve target when the color attachment [TextureView of Texture "Render Target Texture"] has a sample count of 1.
@@ -56,53 +57,8 @@ export class Renderer {
 
 		this.timing = new RenderTiming(this.device);
 
-		this.pipeline = this.device.createRenderPipeline({
-			layout: 'auto',
-			vertex: {
-				module: this.device.createShaderModule({
-					code: basicVertWGSL,
-				}),
-				buffers: [
-					{
-						arrayStride: cubeVertexSize,
-						attributes: [
-							{
-								shaderLocation: 0,
-								offset: cubePositionOffset,
-								format: 'float32x4',
-							},
-							{
-								shaderLocation: 1,
-								offset: cubeUVOffset,
-								format: 'float32x2',
-							}
-						]
-					}
-				]
-			},
-			fragment: {
-				module: this.device.createShaderModule({
-					code: sampleTextureMixColorWGSL,
-				}),
-				targets: [
-					{
-						format: this.presentationFormat,
-					},
-				],
-			},
-			multisample: {
-				count: MSAA_SAMPLE_COUNT,
-			},
-			primitive: {
-				topology: 'triangle-list',
-				cullMode: 'back',
-			},
-			depthStencil: {
-				depthWriteEnabled: true,
-				depthCompare: 'less',
-				format: 'depth24plus',
-			}
-		});
+		const pipelineDesc = getDefaultRenderPipelineDescriptor(this.device, this.presentationFormat);
+		this.pipeline = this.device.createRenderPipeline(pipelineDesc);
 
 		this.onCanvasResize(canvas);
 
@@ -145,6 +101,8 @@ export class Renderer {
 		});
 		this.resizeObserver.observe(canvas);
 	}
+
+	public getDevice() { return this.device; }
 
 	public draw(gameState: GameState) {
 		const aspect = this.context.canvas.width / this.context.canvas.height;

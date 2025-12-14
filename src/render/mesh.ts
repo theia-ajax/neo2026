@@ -1,12 +1,5 @@
 import { vec3, vec2 } from 'wgpu-matrix'
 
-export interface Renderable {
-	vertexBuffer: GPUBuffer;
-	indexBuffer: GPUBuffer;
-	indexCount: number;
-	bindGroup?: GPUBindGroup;
-}
-
 export interface RenderableOptions {
 	storeVertices?: boolean;
 	storeIndices?: boolean;
@@ -18,7 +11,13 @@ export interface Mesh {
 	vertexStride: number;
 }
 
-export function createMeshRenderable(device: GPUDevice, mesh: Mesh, options: RenderableOptions): Renderable {
+export interface MeshRenderable {
+	vertexBuffer: GPUBuffer;
+	indexBuffer: GPUBuffer;
+	indexCount: number;
+}
+
+export function createMeshRenderable(device: GPUDevice, mesh: Mesh, options: RenderableOptions): MeshRenderable {
 	const vertexBufferUsage = options.storeVertices
 		? GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE
 		: GPUBufferUsage.VERTEX;
