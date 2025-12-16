@@ -141,9 +141,7 @@ export class Renderer {
 	public draw(gameState: GameState) {
 		const aspect = this.context.canvas.width / this.context.canvas.height;
 		const projection = mat4.perspective(70 * Math.PI / 180.0, aspect, 1, 1000.0);
-		const view = mat4.identity();
-
-		mat4.translate(view, vec3.fromValues(0, -15, -512), view);
+		const view = gameState.camera.view;
 
 		const model = gameState.terrain.getModelMatrix(gameState);
 		mat4.multiply(projection, mat4.multiply(view, model), this.modelViewProjection);

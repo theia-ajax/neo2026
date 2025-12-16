@@ -10,6 +10,7 @@ import { createMeshRenderable, getMeshVertex, type Mesh, type MeshRenderable } f
 import { vec3, type Vec3 } from "wgpu-matrix"
 import { Terrain } from '@/terrain'
 import { createInputHandler, type InputHandler } from "@/input";
+import { Camera, TankCameraController } from "@/render/camera"
 import type Input from "@/input";
 
 export interface GameTime {
@@ -20,7 +21,7 @@ export interface GameTime {
 }
 
 interface GameCallback {
-	(gameTime: GameTime): void;
+	(gameState: GameState): void;
 }
 
 class GameCallbackDriver {
@@ -41,13 +42,13 @@ class GameCallbackDriver {
 		this.accumulator = 0;
 	}
 
-	public update(gameTime: GameTime) {
-		const deltaTime = Math.min(gameTime.deltaSec, 1.0);
+	public update(gameState: GameState) {
+		const deltaTime = Math.min(gameState.time.deltaSec, 1.0);
 		this.accumulator += deltaTime;
 		this.accumulator = Math.min(this.accumulator, this.maxCallsPerUpdate * this.interval);
 		var callsThisUpdate = 0;
 		while (this.accumulator >= this.interval && callsThisUpdate < this.maxCallsPerUpdate) {
-			this.callback(gameTime);
+			this.callback(gameState);
 			this.accumulator -= this.interval;
 			callsThisUpdate++;
 		}
@@ -64,12 +65,10 @@ export class Game {
 	private renderer: Renderer;
 	private assets: AssetDatabase;
 	private currentTime: number = 0;
-	private gameTime: GameTime;
 	private gameCallbacks: Array<GameCallbackDriver>;
 	private cpuSampler: SampleBuffer;
 	private fpsSampler: SampleBuffer;
 	private inputHandler: InputHandler;
-	private input: Input;
 
 	constructor(canvas: HTMLCanvasElement, device: GPUDevice, assets: AssetDatabase) {
 		this.canvas = canvas;
@@ -78,7 +77,9 @@ export class Game {
 
 		this.inputHandler = createInputHandler(window, canvas);
 
-		const FIXED_UPDATE_HERTZ = 240;
+		const FIXED_UPDATE_HERTZ = 120;
+
+		this.gameState = new GameState();
 
 		this.gameTime = {
 			deltaSec: 0,
@@ -87,10 +88,13 @@ export class Game {
 			timeScale: 1.0,
 		}
 
-		this.gameState = new GameState();
 		this.gameState.texture = createTextureFromImage(this.device, this.assets.getAsset("sculls_2").image);
 		this.gameState.terrain = new Terrain();
 		this.gameState.terrain.initFromHeightmap(this.device, this.assets.getAsset("heightmap").image);
+
+		this.gameState.camera = new Camera();
+		this.gameState.cameraController = new TankCameraController(this.gameState.camera);
+		this.gameState.camera.position = vec3.create(0, 15, 0);
 
 		this.renderer = new Renderer(this.canvas, this.device, this.gameState);
 
@@ -107,36 +111,39 @@ export class Game {
 		});
 
 		this.gameCallbacks = [
-			new GameCallbackDriver("Pre Frame", (gt: GameTime) => { this.preFrame(gt); }),
-			new GameCallbackDriver("Update", (gt: GameTime) => { this.update(gt); }),
-			new GameCallbackDriver("Fixed Update", (gt: GameTime) => { this.fixedUpdate(gt); }, FIXED_UPDATE_HERTZ),
-			new GameCallbackDriver("Render", (gt: GameTime) => { this.render(gt); }),
-			new GameCallbackDriver("Post Frame", (gt: GameTime) => { this.postFrame(gt); }),
+			new GameCallbackDriver("Pre Frame", (gs: GameState) => { this.preFrame(gs); }),
+			new GameCallbackDriver("Update", (gs: GameState) => { this.update(gs); }),
+			new GameCallbackDriver("Fixed Update", (gs: GameState) => { this.fixedUpdate(gs); }, FIXED_UPDATE_HERTZ),
+			new GameCallbackDriver("Render", (gs: GameState) => { this.render(gs); }),
+			new GameCallbackDriver("Post Frame", (gs: GameState) => { this.postFrame(gs); }),
 		];
 
 		requestAnimationFrame((timestamp) => { this.mainLoop(timestamp) });
 	}
 
+	get gameTime() { return this.gameState.time; }
+	set gameTime(gt: GameTime) { this.gameState.time = gt; }
+
 	private setCurrentTime(newTime: DOMHighResTimeStamp) {
 		this.currentTime = newTime * 1000.0;
 	}
 
-	private preFrame(gameTime: GameTime) {
+	private preFrame(gameState: GameState) {
 
 	}
 
-	private update(gameTime: GameTime) {
+	private update(gameState: GameState) {
 	}
 
-	private fixedUpdate(gameTime: GameTime) {
-		this.gameState.state += gameTime.fixedDeltaSec;
+	private fixedUpdate(gameState: GameState) {
+		gameState.cameraController.update(gameState, gameState.time.fixedDeltaSec);
 	}
 
-	private render(gameTime: GameTime) {
-		this.renderer.draw(this.gameState);
+	private render(gameState: GameState) {
+		this.renderer.draw(gameState);
 	}
 
-	private postFrame(gameTime: GameTime) {
+	private postFrame(gameState: GameState) {
 	}
 
 	private mainLoop(newTime: DOMHighResTimeStamp) {
@@ -153,11 +160,11 @@ export class Game {
 		this.gameTime.deltaSec = deltaTime;
 		this.gameTime.elapsedSec += deltaTime;
 
-		console.log(this.input.axes.move_x);
+		this.gameState.input = this.inputHandler();
 
 		for (var callbackIndex in this.gameCallbacks) {
 			var gameCb = this.gameCallbacks[callbackIndex]
-			gameCb.update(this.gameTime);
+			gameCb.update(this.gameState);
 		}
 
 		this.setCurrentTime(newTime);
