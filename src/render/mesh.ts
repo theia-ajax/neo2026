@@ -52,3 +52,7 @@ export function createMeshRenderable(device: GPUDevice, mesh: Mesh, options?: Re
 		indexCount: mesh.indices.length,
 	};
 }
+
+export function getMeshVertex(mesh: Mesh, vertexId: number){
+	return mesh.vertices.slice(vertexId * (mesh.vertexStride / 4), (vertexId + 1) * (mesh.vertexStride / 4));
+}

@@ -2,7 +2,7 @@ import type { Mesh } from "@/render/mesh"
 import { vec2, vec3 } from "wgpu-matrix";
 import getImageData from "@/assets/imageData";
 
-export default function createHeightmapMesh(heightmapImage: ImageBitmap): Mesh {
+export default function createHeightmapMesh(heightmapImage: ImageBitmap, yScale: number = 1.0): Mesh {
 	const vertexCount = heightmapImage.width * heightmapImage.height;
 	const indexCount = (heightmapImage.width - 1) * (heightmapImage.height - 1) * 6;
 
@@ -22,8 +22,8 @@ export default function createHeightmapMesh(heightmapImage: ImageBitmap): Mesh {
 			const r = imageData.data[(z * imageData.width + x) * 4 + 0];
 			const g = imageData.data[(z * imageData.width + x) * 4 + 1];
 			const b = imageData.data[(z * imageData.width + x) * 4 + 2];
-			const y = (r + g + b) / 3 / 255;
-			const vertexPos = vec3.fromValues(x - imageData.width / 2, y, z - imageData.height / 2);
+			const y = (r + g + b) / 3 / 255 * yScale;
+			const vertexPos = vec3.fromValues(x, y, z);
 			const vertexNorm = vec3.fromValues(0, 1, 0); // FIX
 			const vertexUv = vec2.fromValues(x, z);
 
@@ -43,13 +43,18 @@ export default function createHeightmapMesh(heightmapImage: ImageBitmap): Mesh {
 	let triangleId = 0;
 	for (let z = 0; z < imageData.height - 1; z++) {
 		for (let x = 0; x < imageData.width - 1; x++) {
-			let i0 = x + z * imageData.width;
-			let i1 = i0 + 1;
-			let i2 = i1 + imageData.width;
+			let tl = x + z * imageData.width;
+			let tr = tl + 1;
+			let bl = tl + imageData.width;
+			let br = bl + 1;
 
-			let i3 = i0;
-			let i4 = i2;
-			let i5 = i0 + imageData.width;
+			let i0 = tl;
+			let i1 = bl;
+			let i2 = br;
+
+			let i3 = tr;
+			let i4 = tl;
+			let i5 = br;
 
 			heightmapMesh.indices[triangleId * 3 + 0] = i0;
 			heightmapMesh.indices[triangleId * 3 + 1] = i1;

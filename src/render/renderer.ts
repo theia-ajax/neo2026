@@ -85,7 +85,7 @@ export class Renderer {
 			},
 			primitive: {
 				topology: 'triangle-list',
-				// cullMode: 'back',
+				cullMode: 'back',
 			},
 			depthStencil: {
 				depthWriteEnabled: true,
@@ -140,13 +140,12 @@ export class Renderer {
 
 	public draw(gameState: GameState) {
 		const aspect = this.context.canvas.width / this.context.canvas.height;
-		const projection = mat4.perspective((2 * Math.PI) / 5, aspect, 1, 5000.0);
+		const projection = mat4.perspective(70 * Math.PI / 180.0, aspect, 1, 1000.0);
 		const view = mat4.identity();
-		
-		mat4.translate(view, vec3.fromValues(0, -15, -24), view);
 
-		const model = mat4.rotate(mat4.scale(mat4.identity(), vec3.create(0.25, 14, 0.25)), vec3.create(0, 1, 0), gameState.state * 0.1);
+		mat4.translate(view, vec3.fromValues(0, -15, -512), view);
 
+		const model = gameState.terrain.getModelMatrix(gameState);
 		mat4.multiply(projection, mat4.multiply(view, model), this.modelViewProjection);
 
 		this.device.queue.writeBuffer(
@@ -166,7 +165,7 @@ export class Renderer {
 				{
 					view: renderTargetView,
 					resolveTarget: this.context.getCurrentTexture().createView(),
-					clearValue: [0.1, 0.1, 0.1, 1.0],
+					clearValue: [0.0, 0.0, 0.0, 1.0],
 					loadOp: 'clear',
 					storeOp: 'store',
 				},
@@ -187,9 +186,9 @@ export class Renderer {
 		const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
 		passEncoder.setPipeline(this.pipeline);
 		passEncoder.setBindGroup(0, this.uniformBindGroup);
-		passEncoder.setVertexBuffer(0, gameState.renderMesh.vertexBuffer);
-		passEncoder.setIndexBuffer(gameState.renderMesh.indexBuffer, "uint32");
-		passEncoder.drawIndexed(gameState.renderMesh.indexCount);
+		passEncoder.setVertexBuffer(0, gameState.terrain.renderMesh.vertexBuffer);
+		passEncoder.setIndexBuffer(gameState.terrain.renderMesh.indexBuffer, "uint32");
+		passEncoder.drawIndexed(gameState.terrain.renderMesh.indexCount);
 		passEncoder.end();
 
 		this.timing.start(commandEncoder);
