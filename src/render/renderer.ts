@@ -1,11 +1,4 @@
 import { mat4, vec3, type Mat4 } from 'wgpu-matrix';
-import {
-	cubeVertexArray,
-	cubeVertexSize,
-	cubeUVOffset,
-	cubePositionOffset,
-	cubeVertexCount,
-} from '@meshes/cube';
 import basicVertWGSL from '@shaders/basic.vert.wgsl?raw'
 import vertexPositionColorWGSL from '@shaders/vertexPositionColor.frag.wgsl?raw'
 import sampleTextureMixColorWGSL from '@shaders/sampleTextureMixColor.frag.wgsl?raw'
@@ -13,7 +6,7 @@ import { getDevicePixelContentBoxSize } from '@/render/rendererUtils';
 import { GameState } from '@/gamestate';
 import { SampleBuffer } from '@/util';
 import { createTextureBindGroup, createTextureFromImage } from './texture';
-import { getDefaultRenderPipelineDescriptor } from '@/render/renderPipelines';
+import '@/assets/meshes/heightmap'
 
 // webgpu only supports 1 or 4 and 1 fails with the following error on chrome/windows:
 // Cannot set [TextureView of Texture "D3DImageBacking_D3DSharedImage_WebGPUSwapBufferProvider_Pid:11684"] as a resolve target when the color attachment [TextureView of Texture "Render Target Texture"] has a sample count of 1.
@@ -26,7 +19,6 @@ export class Renderer {
 	private presentationFormat: GPUTextureFormat;
 	private renderTargetTexture: GPUTexture | undefined = undefined;
 	private depthTexture: GPUTexture;
-	private vertexBuffer: GPUBuffer;
 	private uniformBuffer: GPUBuffer;
 	private uniformBindGroup: GPUBindGroup;
 	private modelViewProjection: Mat4;
@@ -47,24 +39,68 @@ export class Renderer {
 			format: this.presentationFormat
 		});
 
-		this.vertexBuffer = this.device.createBuffer({
-			size: cubeVertexArray.byteLength,
-			usage: GPUBufferUsage.VERTEX,
-			mappedAtCreation: true
-		});
-		new Float32Array(this.vertexBuffer.getMappedRange()).set(cubeVertexArray);
-		this.vertexBuffer.unmap();
-
 		this.timing = new RenderTiming(this.device);
 
-		const pipelineDesc = getDefaultRenderPipelineDescriptor(this.device, this.presentationFormat);
-		this.pipeline = this.device.createRenderPipeline(pipelineDesc);
+		this.pipeline = this.device.createRenderPipeline({
+			layout: 'auto',
+			vertex: {
+				module: this.device.createShaderModule({
+					code: basicVertWGSL,
+				}),
+				buffers: [
+					{
+						arrayStride: 8 * 4,
+						attributes: [
+							{
+								shaderLocation: 0,
+								offset: 0,
+								format: 'float32x3',
+							},
+							{
+								shaderLocation: 1,
+								offset: 3 * 4,
+								format: 'float32x3',
+							},
+							{
+								shaderLocation: 2,
+								offset: 6 * 4,
+								format: 'float32x2',
+							},
+						]
+					}
+				]
+			},
+			fragment: {
+				module: this.device.createShaderModule({
+					code: sampleTextureMixColorWGSL,
+				}),
+				targets: [
+					{
+						format: this.presentationFormat,
+					},
+				],
+			},
+			multisample: {
+				count: MSAA_SAMPLE_COUNT,
+			},
+			primitive: {
+				topology: 'triangle-list',
+				// cullMode: 'back',
+			},
+			depthStencil: {
+				depthWriteEnabled: true,
+				depthCompare: 'less',
+				format: 'depth24plus',
+			}
+		});
 
 		this.onCanvasResize(canvas);
 
 		this.sampler = device.createSampler({
 			minFilter: 'nearest',
 			magFilter: 'nearest',
+			addressModeU: 'repeat',
+			addressModeV: 'repeat',
 		});
 
 		this.uniformBuffer = device.createBuffer({
@@ -102,15 +138,14 @@ export class Renderer {
 		this.resizeObserver.observe(canvas);
 	}
 
-	public getDevice() { return this.device; }
-
 	public draw(gameState: GameState) {
 		const aspect = this.context.canvas.width / this.context.canvas.height;
-		const projection = mat4.perspective((2 * Math.PI) / 5, aspect, 1, 100.0);
+		const projection = mat4.perspective((2 * Math.PI) / 5, aspect, 1, 5000.0);
 		const view = mat4.identity();
-		mat4.translate(view, vec3.fromValues(0, 0, -4), view);
+		
+		mat4.translate(view, vec3.fromValues(0, -15, -24), view);
 
-		const model = mat4.rotate(mat4.identity(), vec3.create(0, 1, 0), gameState.state);
+		const model = mat4.rotate(mat4.scale(mat4.identity(), vec3.create(0.25, 14, 0.25)), vec3.create(0, 1, 0), gameState.state * 0.1);
 
 		mat4.multiply(projection, mat4.multiply(view, model), this.modelViewProjection);
 
@@ -152,8 +187,9 @@ export class Renderer {
 		const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
 		passEncoder.setPipeline(this.pipeline);
 		passEncoder.setBindGroup(0, this.uniformBindGroup);
-		passEncoder.setVertexBuffer(0, this.vertexBuffer);
-		passEncoder.draw(cubeVertexCount);
+		passEncoder.setVertexBuffer(0, gameState.renderMesh.vertexBuffer);
+		passEncoder.setIndexBuffer(gameState.renderMesh.indexBuffer, "uint32");
+		passEncoder.drawIndexed(gameState.renderMesh.indexCount);
 		passEncoder.end();
 
 		this.timing.start(commandEncoder);

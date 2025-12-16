@@ -5,6 +5,8 @@ import { Renderer } from "@/render/renderer"
 import { SampleBuffer } from "@/util"
 import { AssetDatabase } from "@assets/assetDatabase"
 import {  createTextureFromImage } from "@/render/texture"
+import createHeightmapMesh from "./assets/meshes/heightmap"
+import { createMeshRenderable } from "./render/mesh"
 
 interface GameCallback {
 	(deltaTime: number): void;
@@ -65,6 +67,9 @@ export class Game {
 		this.gameState = new GameState();
 		this.gameState.texture = createTextureFromImage(this.device, this.assets.getAsset("testimage").image);
 
+		var mesh = createHeightmapMesh(this.assets.getAsset("smallheightmap").image);
+		this.gameState.renderMesh = createMeshRenderable(this.device, mesh);
+		
 		this.renderer = new Renderer(this.canvas, this.device, this.gameState);
 		
 		this.cpuSampler = new SampleBuffer(60);

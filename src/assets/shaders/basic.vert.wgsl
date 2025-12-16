@@ -11,12 +11,13 @@ struct VertexOutput {
 
 @vertex
 fn main(
-	@location(0) position : vec4f,
-	@location(1) uv : vec2f
+	@location(0) position : vec3f,
+	@location(1) normal: vec3f,
+	@location(2) uv : vec2f
 ) -> VertexOutput {
 	var output : VertexOutput;
-	output.Position = uniforms.modelViewProjectionMatrix * position;
+	output.Position = uniforms.modelViewProjectionMatrix * vec4(position, 1.0);
 	output.fragUV = uv;
-	output.fragPosition = 0.5 * (position + vec4(1.0, 1.0, 1.0, 1.0));
+	output.fragPosition = vec4(position, 1.0);
 	return output;
 }

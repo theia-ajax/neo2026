@@ -17,11 +17,11 @@ export interface MeshRenderable {
 	indexCount: number;
 }
 
-export function createMeshRenderable(device: GPUDevice, mesh: Mesh, options: RenderableOptions): MeshRenderable {
-	const vertexBufferUsage = options.storeVertices
+export function createMeshRenderable(device: GPUDevice, mesh: Mesh, options?: RenderableOptions): MeshRenderable {
+	const vertexBufferUsage = options?.storeVertices
 		? GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE
 		: GPUBufferUsage.VERTEX;
-	const indexBufferUsage = options.storeIndices
+	const indexBufferUsage = options?.storeIndices
 		? GPUBufferUsage.INDEX | GPUBufferUsage.STORAGE
 		: GPUBufferUsage.INDEX;
 
