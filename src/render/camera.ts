@@ -32,6 +32,12 @@ export class Camera implements ICamera {
 	set backwards(v: Vec3) { vec3.copy(v, this.backwards_); }
 	get position() { return this.position_; }
 	set position(v: Vec3) { vec3.copy(v, this.position_); }
+
+	lookAt(eye: Vec3, target: Vec3, up: Vec3)
+	{
+		mat4.lookAt(eye, target, up, this.matrix);
+		mat4.invert(this.matrix, this.view);
+	}
 }
 
 export interface ICameraController {

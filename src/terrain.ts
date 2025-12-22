@@ -1,36 +1,41 @@
 import { mat4, vec3, type Mat4, type Vec3 } from 'wgpu-matrix';
 import { createMeshRenderable, type Mesh, type MeshRenderable } from "@/render/mesh";
-import createHeightmapMesh from '@/assets/meshes/heightmap';
+import createHeightmapMesh, { createFlatShadedHeightmapMesh } from '@/assets/meshes/heightmap';
 import type { GameState } from './gamestate';
 
 export class Terrain {
 	mesh: Mesh;
 	renderMesh: MeshRenderable;
 	position: Vec3;
+	rotation: number;
 	scale: Vec3;
 	width: number;
-	depth: number;
+	length: number;
 
 	initFromHeightmap(device: GPUDevice, image: ImageBitmap) {
-		this.mesh = createHeightmapMesh(image);
+		this.mesh = createHeightmapMesh(image, 16);
+		// this.mesh = createFlatShadedHeightmapMesh(image, 40);
 		this.renderMesh = createMeshRenderable(device, this.mesh);
 
 		this.width = image.width;
-		this.depth = image.height;
+		this.length = image.height;
 
-		this.position = vec3.create(-this.width / 2, 0, -this.depth / 2);
-		this.scale = vec3.create(1, 50, 1);
+		this.position = vec3.create(-this.width / 2, -20, -this.length / 2);
+		this.rotation = 0;
+		const s = 1;
+		this.scale = vec3.create(s, 1, s);
 	}
 
 	sampleHeight(x: number, z: number): number {
 		// todo translate and scale sample position
 
-		if (x < 0 || z < 0 || x > this.width || z > this.depth) {
+
+		if (x < 0 || z < 0 || x > this.width || z > this.length) {
 			return 0;
 		}
 
 		let tileX = Math.floor(x / this.width);
-		let tileY = Math.floor(z / this.depth);
+		let tileY = Math.floor(z / this.length);
 
 		let tlVertId = tileX + tileY * this.width;
 		let trVertId = tlVertId + 1;
@@ -45,7 +50,16 @@ export class Terrain {
 
 	getModelMatrix(gameState: GameState): Mat4 {
 
-		let model = mat4.translate(mat4.rotate(mat4.scale(mat4.translate(mat4.identity(), vec3.create(0, -25, 0)), this.scale), vec3.create(0, 1, 0), gameState.state * 0.1), this.position);
+		let model =
+			mat4.translate(mat4.
+				rotate(
+					mat4.scale(
+						mat4.identity(),
+						this.scale),
+					vec3.create(0, 1, 0),
+					this.rotation),
+				this.position);
+
 		return model;
 	}
 }

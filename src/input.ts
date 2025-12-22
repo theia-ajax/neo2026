@@ -10,6 +10,17 @@ export default interface Input {
 		readonly move_z: number,
 		readonly turn: number,
 	},
+	readonly keyState: Record<string, boolean>,
+}
+
+function copyInputTo(source: Input, destination: Input)
+{
+	for (var button in source.buttons) {
+		destination.buttons[button] = source.buttons[button];
+	}
+	for (var axis in source.axes) {
+		destination.axes[axis] = source.axes[axis];
+	}
 }
 
 interface ButtonKeyBinding {
@@ -23,20 +34,25 @@ interface AxisKeyBinding {
 
 export type InputHandler = () => Input;
 
+function createEmptyInput(): Input
+{
+	return {
+		buttons: {
+			action: 0,
+			sprint: 0,
+		},
+		axes: {
+			move_x: 0,
+			move_y: 0,
+			move_z: 0,
+			turn: 0,
+		},
+		keyState: {}
+	}
+}
+
 export function createInputHandler(window: Window, canvas: HTMLCanvasElement): InputHandler {
-	const keyState: Record<string, boolean> = {}
-
-	const buttons = {
-		action: 0,
-		sprint: 0,
-	}
-	const axes = {
-		move_x: 0,
-		move_y: 0,
-		move_z: 0,
-		turn: 0,
-	}
-
+	const input = createEmptyInput();
 	const buttonKeyBindings: Record<string, ButtonKeyBinding> = {
 		Space: { button: 'action' },
 		ShiftLeft: { button: 'sprint' },
@@ -54,11 +70,11 @@ export function createInputHandler(window: Window, canvas: HTMLCanvasElement): I
 	}
 
 	const applyButtonKeyBinding = (binding: ButtonKeyBinding, pressed: boolean) => {
-		buttons[binding.button] += pressed ? 1 : -1;
+		input.buttons[binding.button] += pressed ? 1 : -1;
 	}
 
 	const applyAxisKeyBinding = (axis: AxisKeyBinding, pressed: boolean) => {
-		axes[axis.axis] += pressed ? axis.value : -axis.value;
+		input.axes[axis.axis] += pressed ? axis.value : -axis.value;
 	}
 
 	const setKeyboardInput = (ev: KeyboardEvent, pressed: boolean) => {
@@ -75,7 +91,7 @@ export function createInputHandler(window: Window, canvas: HTMLCanvasElement): I
 			let shouldApply = true;
 			// prevents cases where a key was held before the page was loaded so there was never an initial keydown event.
 			// on keyup checks that we've previously stored that the key was down
-			if (!pressed && !keyState[ev.code]) {
+			if (!pressed && !input.keyState[ev.code]) {
 				shouldApply = false;
 			}
 			if (shouldApply) {
@@ -86,7 +102,7 @@ export function createInputHandler(window: Window, canvas: HTMLCanvasElement): I
 		}
 
 		if (!ev.repeat) {
-			keyState[ev.code] = pressed;
+			input.keyState[ev.code] = pressed;
 		}
 	}
 
@@ -95,14 +111,28 @@ export function createInputHandler(window: Window, canvas: HTMLCanvasElement): I
 
 	return () => {
 		const out = {
-			buttons,
-			axes,
-			keyState,
+			buttons: input.buttons,
+			axes: input.axes,
+			keyState: input.keyState,
 		};
 		return out;
 	}
 }
 
 export class InputSystem {
+	current: Input;
+	previous: Input;
+	inputHandler: InputHandler;
 
+	public nextFrame()
+	{
+		if (this.current) {
+			if (!this.previous){
+				this.previous = createEmptyInput();
+			}
+			copyInputTo(this.current, this.previous);
+		}
+
+		this.current = this.inputHandler();
+	}
 }

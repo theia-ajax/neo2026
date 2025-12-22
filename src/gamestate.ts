@@ -7,7 +7,6 @@ import type Input from '@/input';
 
 export class GameState {
 	public time: GameTime;
-	public state: number = 0;
 	public camera: Camera;
 	public cameraController: TankCameraController;
 	public input: Input;

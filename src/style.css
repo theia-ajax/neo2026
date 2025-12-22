@@ -12,8 +12,12 @@ html {
 #debug {
     position: relative;
     font-family: monospace;
-    font-size: 20px;
+    font-size: 12px;
     line-height: 100%;
+    background-color: #0000FF1F;
+    color: white;
+    border: 1px solid #00CCFF;
+    width: 240px;
 }
 
 #debug canvas,
@@ -25,13 +29,6 @@ html {
     position: absolute;
     width: 100%;
     height: 100%;
-}
-
-#debug {
-    background-color: #0000FF1F;
-    color: white;
-    border: 1px solid #00CCFF;
-    width: 400px;
 }
 
 #footer {

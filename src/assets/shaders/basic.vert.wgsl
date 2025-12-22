@@ -7,6 +7,7 @@ struct VertexOutput {
 	@builtin(position) Position : vec4f,
 	@location(0) fragUV : vec2f,
 	@location(1) fragPosition : vec4f,
+	@location(2) fragNormal : vec4f,
 }
 
 @vertex
@@ -19,5 +20,6 @@ fn main(
 	output.Position = uniforms.modelViewProjectionMatrix * vec4(position, 1.0);
 	output.fragUV = uv;
 	output.fragPosition = vec4(position, 1.0);
+	output.fragNormal = vec4(normal, 1.0);
 	return output;
 }

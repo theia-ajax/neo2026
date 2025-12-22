@@ -38,5 +38,14 @@ export const GlobalAssetManifest: AssetManifest = {
 				textureFormat: 'rgba8unorm',
 			}
 		},
+		{
+			name: "craters",
+			type: "IMAGE",
+			url: new URL('textures/craters.png', import.meta.url),
+			importConfig: {
+				type: "IMAGE",
+				textureFormat: 'rgba8unorm',
+			}
+		},
 	]
 }

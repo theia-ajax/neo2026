@@ -16,6 +16,8 @@ import type Input from "@/input";
 export interface GameTime {
 	deltaSec: number;
 	fixedDeltaSec: number;
+	deltaSecNoScale: number;
+	fixedDeltaSecNoScale: number;
 	elapsedSec: number;
 	timeScale: number;
 }
@@ -78,23 +80,27 @@ export class Game {
 		this.inputHandler = createInputHandler(window, canvas);
 
 		const FIXED_UPDATE_HERTZ = 120;
+		const FIXED_DELTA_SECONDS = 1 / FIXED_UPDATE_HERTZ;
 
 		this.gameState = new GameState();
 
-		this.gameTime = {
+	this.gameTime = {
 			deltaSec: 0,
-			fixedDeltaSec: 1.0 / FIXED_UPDATE_HERTZ,
+			deltaSecNoScale: 0,
+			fixedDeltaSec: FIXED_DELTA_SECONDS,
+			fixedDeltaSecNoScale: FIXED_DELTA_SECONDS,
 			elapsedSec: 0,
 			timeScale: 1.0,
 		}
 
-		this.gameState.texture = createTextureFromImage(this.device, this.assets.getAsset("sculls_2").image);
+		this.gameState.texture = createTextureFromImage(this.device, this.assets.getAsset("testimage").image);
 		this.gameState.terrain = new Terrain();
-		this.gameState.terrain.initFromHeightmap(this.device, this.assets.getAsset("heightmap").image);
+		this.gameState.terrain.initFromHeightmap(this.device, this.assets.getAsset("craters").image);
 
 		this.gameState.camera = new Camera();
 		this.gameState.cameraController = new TankCameraController(this.gameState.camera);
-		this.gameState.camera.position = vec3.create(0, 15, 0);
+		this.gameState.camera.position = vec3.create(0, 25, 50);
+		// this.gameState.camera.lookAt(vec3.create(0, 15, 0), vec3.create(0, 0, 0), );
 
 		this.renderer = new Renderer(this.canvas, this.device, this.gameState);
 
@@ -136,7 +142,8 @@ export class Game {
 	}
 
 	private fixedUpdate(gameState: GameState) {
-		gameState.cameraController.update(gameState, gameState.time.fixedDeltaSec);
+		gameState.cameraController?.update(gameState, gameState.time.fixedDeltaSec);
+		// gameState.terrain.rotation = gameState.time.elapsedSec * Math.PI * 2 / 16;
 	}
 
 	private render(gameState: GameState) {
@@ -157,8 +164,10 @@ export class Game {
 
 		const deltaTimeMicro = newTime * 1000 - this.currentTime;
 		const deltaTime = deltaTimeMicro / 1000000;
-		this.gameTime.deltaSec = deltaTime;
-		this.gameTime.elapsedSec += deltaTime;
+		this.gameTime.deltaSecNoScale = deltaTime;
+		this.gameTime.deltaSec = this.gameTime.deltaSecNoScale * this.gameTime.timeScale;
+		this.gameTime.fixedDeltaSec = this.gameTime.fixedDeltaSecNoScale * this.gameTime.timeScale;
+		this.gameTime.elapsedSec += this.gameTime.deltaSec;
 
 		this.gameState.input = this.inputHandler();
 
@@ -177,7 +186,25 @@ export class Game {
 		debug.log(`FPS: ${(this.fpsSampler.slowAverage).toFixed(1)}`)
 		debug.log(`CPU: ${(this.cpuSampler.average()).toFixed(3)}ms (Max ${(this.cpuSampler.max()).toFixed(3)}ms)`)
 		debug.log(`GPU: ${(this.renderer.gpuSample.average() / 1000).toFixed(1)}μs (Max ${(this.renderer.gpuSample.max() / 1000).toFixed(1)}μs)`);
-		debug.log(`Elapsed Time: ${this.gameTime.elapsedSec.toFixed(3)}s`);
+
+		const formatTime = (totalSeconds) => {
+			const totalMinutes = totalSeconds / 60;
+			const totalHours = totalMinutes / 60;
+			const totalDays = totalHours / 24;
+
+			const seconds = totalSeconds % 60;
+			const minutes = Math.floor(totalMinutes);
+			const hours = Math.floor(totalHours);
+			const days = Math.floor(totalDays);
+
+			const secondsDisplay = seconds.toFixed(3).padStart(6, "0")
+			const minutesDisplay = minutes.toString().padStart(2, "0")
+			const hoursDisplay = hours.toString().padStart(2, "0")
+			const daysDisplay = days.toString().padStart(2, "0")
+
+			return `${daysDisplay}:${hoursDisplay}:${minutesDisplay}:${secondsDisplay}`
+		}
+		debug.log(`Elapsed Time: ${formatTime(this.gameTime.elapsedSec)}`);
 
 		debug.flush();
 	}
