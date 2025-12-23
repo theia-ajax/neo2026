@@ -1,12 +1,12 @@
 import { mat4, vec3, type Mat4 } from 'wgpu-matrix';
 import basicVertWGSL from '@shaders/basic.vert.wgsl?raw'
 import vertexPositionColorWGSL from '@shaders/vertexPositionColor.frag.wgsl?raw'
-import sampleTextureMixColorWGSL from '@shaders/sampleTextureMixColor.frag.wgsl?raw'
+import terrainWGSL from '@shaders/terrain.frag.wgsl?raw'
 import { getDevicePixelContentBoxSize } from '@/render/rendererUtils';
 import { GameState } from '@/gamestate';
 import { SampleBuffer } from '@/util';
 import { createTextureBindGroup, createTextureFromImage } from './texture';
-import '@/assets/meshes/heightmap'
+import '@/assets/meshes/heightmapTerrain'
 
 // webgpu only supports 1 or 4 and 1 fails with the following error on chrome/windows:
 // Cannot set [TextureView of Texture "D3DImageBacking_D3DSharedImage_WebGPUSwapBufferProvider_Pid:11684"] as a resolve target when the color attachment [TextureView of Texture "Render Target Texture"] has a sample count of 1.
@@ -72,7 +72,7 @@ export class Renderer {
 			},
 			fragment: {
 				module: this.device.createShaderModule({
-					code: sampleTextureMixColorWGSL,
+					code: terrainWGSL,
 				}),
 				targets: [
 					{
@@ -97,8 +97,8 @@ export class Renderer {
 		this.onCanvasResize(canvas);
 
 		this.sampler = device.createSampler({
-			minFilter: 'nearest',
-			magFilter: 'nearest',
+			minFilter: 'linear',
+			magFilter: 'linear',
 			addressModeU: 'repeat',
 			addressModeV: 'repeat',
 		});
@@ -124,6 +124,10 @@ export class Renderer {
 				{
 					binding: 2,
 					resource: gameState.texture.createView(),
+				},
+				{
+					binding: 3,
+					resource: gameState.normalTexture.createView(),
 				}
 			],
 		});
@@ -163,7 +167,7 @@ export class Renderer {
 				{
 					view: renderTargetView,
 					resolveTarget: this.context.getCurrentTexture().createView(),
-					clearValue: [0.0, 0.0, 0.0, 1.0],
+					clearValue: [0.0, 0.1, 0.1, 1.0],
 					loadOp: 'clear',
 					storeOp: 'store',
 				},
@@ -181,18 +185,20 @@ export class Renderer {
 			},
 		};
 
-		const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
-		passEncoder.setPipeline(this.pipeline);
-		passEncoder.setBindGroup(0, this.uniformBindGroup);
-		passEncoder.setVertexBuffer(0, gameState.terrain.renderMesh.vertexBuffer);
-		passEncoder.setIndexBuffer(gameState.terrain.renderMesh.indexBuffer, "uint32");
-		passEncoder.drawIndexed(gameState.terrain.renderMesh.indexCount);
-		passEncoder.end();
+		if (gameState.terrain.renderMesh) {
+			const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
+			passEncoder.setPipeline(this.pipeline);
+			passEncoder.setBindGroup(0, this.uniformBindGroup);
+			passEncoder.setVertexBuffer(0, gameState.terrain.renderMesh.vertexBuffer);
+			passEncoder.setIndexBuffer(gameState.terrain.renderMesh.indexBuffer, "uint32");
+			passEncoder.drawIndexed(gameState.terrain.renderMesh.indexCount);
+			passEncoder.end();
 
-		this.timing.start(commandEncoder);
+			this.timing.start(commandEncoder);
 
-		const commandBuffer = commandEncoder.finish();
-		this.device.queue.submit([commandBuffer]);
+			const commandBuffer = commandEncoder.finish();
+			this.device.queue.submit([commandBuffer]);
+		}
 
 		this.timing.finish();
 	}

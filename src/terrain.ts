@@ -1,6 +1,5 @@
 import { mat4, vec3, type Mat4, type Vec3 } from 'wgpu-matrix';
 import { createMeshRenderable, type Mesh, type MeshRenderable } from "@/render/mesh";
-import createHeightmapMesh, { createFlatShadedHeightmapMesh } from '@/assets/meshes/heightmap';
 import type { GameState } from './gamestate';
 
 export class Terrain {
@@ -12,15 +11,22 @@ export class Terrain {
 	width: number;
 	length: number;
 
-	initFromHeightmap(device: GPUDevice, image: ImageBitmap) {
-		this.mesh = createHeightmapMesh(image, 16);
+	constructor() {
+		this.position = vec3.create(-this.width / 2, -5, -this.length / 2);
+		this.rotation = 0;
+		const s = 1 / 4;
+		this.scale = vec3.create(s, 1, s);
+	}
+
+	initFromHeightmapMesh(device: GPUDevice, mesh: Mesh) {
+		this.mesh = mesh;
 		// this.mesh = createFlatShadedHeightmapMesh(image, 40);
 		this.renderMesh = createMeshRenderable(device, this.mesh);
 
-		this.width = image.width;
-		this.length = image.height;
+		this.width = mesh.meta?.terrainWidth;
+		this.length = mesh.meta?.terrainHeight;
 
-		this.position = vec3.create(-this.width / 2, -20, -this.length / 2);
+		this.position = vec3.create(-this.width / 2, -1, -this.length / 2);
 		this.rotation = 0;
 		const s = 1;
 		this.scale = vec3.create(s, 1, s);
@@ -41,8 +47,6 @@ export class Terrain {
 		let trVertId = tlVertId + 1;
 		let blVertId = tlVertId + this.width;
 		let brVertId = blVertId + 1;
-
-
 
 
 		return 0;

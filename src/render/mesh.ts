@@ -9,6 +9,7 @@ export interface Mesh {
 	vertices: Float32Array;
 	indices: Uint16Array | Uint32Array;
 	vertexStride: number;
+	meta?: any;
 }
 
 export interface MeshRenderable {

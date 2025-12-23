@@ -1,6 +1,5 @@
 import type { Mesh } from "@/render/mesh"
 import { vec2, vec3, type Vec2, type Vec3 } from "wgpu-matrix";
-import getImageData from "@/assets/imageData";
 
 const kVertexSizeFloats = 8;
 const kVertexSizeBytes = kVertexSizeFloats * 4;
@@ -18,21 +17,6 @@ function getVertexPos(mesh: Mesh, vertexId: number): Vec3 {
 		mesh.vertices[offset + 0],
 		mesh.vertices[offset + 1],
 		mesh.vertices[offset + 2]);
-}
-
-function getVertexNorm(mesh: Mesh, vertexId: number): Vec3 {
-	const offset = vertexId * kVertexSizeFloats;
-	return vec3.create(
-		mesh.vertices[offset + 3],
-		mesh.vertices[offset + 4],
-		mesh.vertices[offset + 5]);
-}
-
-function getVertexUv(mesh: Mesh, vertexId: number): Vec2 {
-	const offset = vertexId * kVertexSizeFloats;
-	return vec2.create(
-		mesh.vertices[offset + 6],
-		mesh.vertices[offset + 7]);
 }
 
 function setVertexNorm(mesh: Mesh, vertexId: number, norm: Vec3) {
@@ -61,19 +45,49 @@ function setTriangle(mesh: Mesh, triangleId: number, i0: number, i1: number, i2:
 	mesh.indices[offset + 2] = i2;
 }
 
-export default function createHeightmapMesh(heightmapImage: ImageBitmap, yScale: number = 1.0): Mesh {
-	const width = heightmapImage.width;
-	const height = heightmapImage.height;
-	const vertexCount = width * height;
-	const indexCount = (width - 1) * (height - 1) * 6;
-
-	let heightmapMesh: Mesh = {
+function createTerrainMesh(vertexCount, indexCount, terrainWidth, terrainHeight): Mesh {
+	return {
 		vertices: new Float32Array(vertexCount * kVertexSizeFloats),
 		indices: new Uint32Array(indexCount),
 		vertexStride: kVertexSizeBytes,
+		meta: {
+			terrainWidth: terrainWidth,
+			terrainHeight: terrainHeight,
+		},
 	};
+}
 
-	const imageData = getImageData(heightmapImage);
+export type TerrainShading = 'diffuse' | 'flat';
+
+export interface CreateHeightmapTerrainOptions {
+	shading?: TerrainShading,
+	scale?: Vec3,
+	textureScale?: Vec2,
+	textureOffset?: Vec2,
+}
+
+export default function createTerrainMeshFromHeightmap(heightmapData: ImageData, options?: CreateHeightmapTerrainOptions, onProgress: (progress: number) => void = () => { }): Mesh {
+	console.assert(heightmapData !== null && heightmapData !== undefined);
+
+	const shading = options?.shading ?? 'diffuse';
+
+	switch (shading) {
+		case 'diffuse': return createDiffuseTerrainMesh(heightmapData, options, onProgress);
+		case 'flat': return createFlatTerrainMesh(heightmapData, options, onProgress);
+		default: console.assert(false);
+	}
+}
+
+function createDiffuseTerrainMesh(heightmapData: ImageData, options?: CreateHeightmapTerrainOptions, onProgress: (progress: number) => void = () => { }): Mesh {
+	const scale = options?.scale ?? vec3.create(1, 1, 1);
+
+	const width = heightmapData.width;
+	const height = heightmapData.height;
+	const vertexCount = width * height;
+	const indexCount = (width - 1) * (height - 1) * 6;
+
+	let heightmapMesh: Mesh = createTerrainMesh(vertexCount, indexCount, width, height);
+
 	let vertexId = 0;
 	let triangleId = 0;
 
@@ -92,12 +106,13 @@ export default function createHeightmapMesh(heightmapImage: ImageBitmap, yScale:
 
 	for (let z = 0; z < height; z++) {
 		for (let x = 0; x < width; x++) {
-			const y = sampleHeight(imageData, x, z) * yScale;
-			const vertexPos = vec3.fromValues(x, y, z);
+			const y = sampleHeight(heightmapData, x, z);
+			const vertexPos = vec3.mul(vec3.fromValues(x, y, z), scale);
 			const vertexNorm = vec3.fromValues(0, 0, 0);
 			const vertexUv = vec2.fromValues(x, z);
 			pushVertex(vertexPos, vertexNorm, vertexUv);
 		}
+		onProgress(z / height / 2);
 	}
 
 	for (let z = 0; z < height - 1; z++) {
@@ -134,25 +149,25 @@ export default function createHeightmapMesh(heightmapImage: ImageBitmap, yScale:
 			const b = vec3.sub(down, up);
 			setNorm(vertexId, vec3.normalize(vec3.cross(b, a)));
 		}
+		onProgress(z / height / 2 + 0.5);
 	}
+
+	onProgress(1);
 
 	return heightmapMesh;
 }
 
-export function createFlatShadedHeightmapMesh(heightmapImage: ImageBitmap, yScale: number = 1.0): Mesh {
-	const width = heightmapImage.width;
-	const height = heightmapImage.height;
+function createFlatTerrainMesh(heightmapData: ImageData, options?: CreateHeightmapTerrainOptions, onProgress?: (progress: number) => void): Mesh {
+	const scale = options?.scale ?? vec3.create(1, 1, 1);
+
+	const width = heightmapData.width;
+	const height = heightmapData.height;
 
 	const vertexCount = (width - 1) * (height - 1) * 6;
 	const indexCount = vertexCount;
 
-	let heightmapMesh: Mesh = {
-		vertices: new Float32Array(vertexCount * kVertexSizeFloats),
-		indices: new Uint32Array(indexCount),
-		vertexStride: kVertexSizeBytes,
-	};
+	let heightmapMesh: Mesh = createTerrainMesh(vertexCount, indexCount, width, height);
 
-	const imageData = getImageData(heightmapImage);
 	let vertexId = 0;
 	let triangleId = 0;
 
@@ -175,7 +190,7 @@ export function createFlatShadedHeightmapMesh(heightmapImage: ImageBitmap, yScal
 				vec3.fromValues(x + 1, 0, z + 1),
 			]
 			for (let i in positions) {
-				const y = sampleHeight(imageData, positions[i].at(0), positions[i].at(2)) * yScale;
+				const y = sampleHeight(heightmapData, positions[i].at(0), positions[i].at(2)) * scale.at(1);
 				positions[i][1] = y;
 			}
 			const uvs = [
@@ -187,8 +202,6 @@ export function createFlatShadedHeightmapMesh(heightmapImage: ImageBitmap, yScal
 			const a1 = vec3.sub(positions[2], positions[0]);
 			const b1 = vec3.sub(positions[3], positions[0]);
 			const norm1 = vec3.normalize(vec3.cross(a1, b1));
-
-			console.log(`${norm1.at(0)},${norm1.at(1)},${norm1.at(2)}`);
 
 			pushVertex(positions[0], norm1, uvs[0]);
 			pushVertex(positions[2], norm1, uvs[2]);
@@ -205,7 +218,11 @@ export function createFlatShadedHeightmapMesh(heightmapImage: ImageBitmap, yScal
 			pushTriangle(vertexId - 3, vertexId - 2, vertexId - 1);
 
 		}
+
+		onProgress(z / (height - 1));
 	}
+
+	onProgress(1);
 
 	return heightmapMesh;
 }

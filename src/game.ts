@@ -5,13 +5,13 @@ import { Renderer } from "@/render/renderer"
 import { SampleBuffer } from "@/util"
 import { AssetDatabase } from "@assets/assetDatabase"
 import { createTextureFromImage } from "@/render/texture"
-import createHeightmapMesh from "@/assets/meshes/heightmap"
-import { createMeshRenderable, getMeshVertex, type Mesh, type MeshRenderable } from "@/render/mesh"
-import { vec3, type Vec3 } from "wgpu-matrix"
+import { vec3 } from "wgpu-matrix"
 import { Terrain } from '@/terrain'
 import { createInputHandler, type InputHandler } from "@/input";
 import { Camera, TankCameraController } from "@/render/camera"
-import type Input from "@/input";
+import getImageData from "./assets/imageData"
+import { createTerrainMeshFromHeightmapAsync } from "@/assets/meshes/heightmapTerrainAsync"
+import type { Mesh } from "@/render/mesh"
 
 export interface GameTime {
 	deltaSec: number;
@@ -84,7 +84,7 @@ export class Game {
 
 		this.gameState = new GameState();
 
-	this.gameTime = {
+		this.gameTime = {
 			deltaSec: 0,
 			deltaSecNoScale: 0,
 			fixedDeltaSec: FIXED_DELTA_SECONDS,
@@ -93,13 +93,24 @@ export class Game {
 			timeScale: 1.0,
 		}
 
-		this.gameState.texture = createTextureFromImage(this.device, this.assets.getAsset("testimage").image);
+		const heightmapData = getImageData(this.assets.getAsset('heightmap').image);
+		createTerrainMeshFromHeightmapAsync(
+			heightmapData,
+			{
+				shading: 'diffuse',
+				scale: vec3.create(1, 32, 1),
+			},
+			(mesh: Mesh) => {
+				this.gameState.terrain.initFromHeightmapMesh(this.device, mesh);
+			});
+
+		this.gameState.texture = createTextureFromImage(this.device, this.assets.getAsset("grass_1_diffuse").image);
+		this.gameState.normalTexture = createTextureFromImage(this.device, this.assets.getAsset('grass_1_normal').image);
 		this.gameState.terrain = new Terrain();
-		this.gameState.terrain.initFromHeightmap(this.device, this.assets.getAsset("craters").image);
 
 		this.gameState.camera = new Camera();
 		this.gameState.cameraController = new TankCameraController(this.gameState.camera);
-		this.gameState.camera.position = vec3.create(0, 25, 50);
+		this.gameState.camera.position = vec3.create(0, 27.5, 10);
 		// this.gameState.camera.lookAt(vec3.create(0, 15, 0), vec3.create(0, 0, 0), );
 
 		this.renderer = new Renderer(this.canvas, this.device, this.gameState);
@@ -143,7 +154,7 @@ export class Game {
 
 	private fixedUpdate(gameState: GameState) {
 		gameState.cameraController?.update(gameState, gameState.time.fixedDeltaSec);
-		// gameState.terrain.rotation = gameState.time.elapsedSec * Math.PI * 2 / 16;
+		// gameState.terrain.rotation = -gameState.time.elapsedSec * Math.PI * 2 / 256;
 	}
 
 	private render(gameState: GameState) {
@@ -205,6 +216,11 @@ export class Game {
 			return `${daysDisplay}:${hoursDisplay}:${minutesDisplay}:${secondsDisplay}`
 		}
 		debug.log(`Elapsed Time: ${formatTime(this.gameTime.elapsedSec)}`);
+
+		const formatPos = (v) => {
+			return `${v.at(0).toFixed(2)}, ${v.at(1).toFixed(2)}, ${v.at(2).toFixed(2)}`
+		}
+		debug.log(`Camera Pos: ${formatPos(this.gameState.camera.position)}`);
 
 		debug.flush();
 	}

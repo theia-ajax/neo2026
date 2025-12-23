@@ -12,5 +12,6 @@ export class GameState {
 	public input: Input;
 	public terrain: Terrain;
 	public texture: GPUTexture;
+	public normalTexture: GPUTexture;
 	public renderMesh: MeshRenderable;
 }

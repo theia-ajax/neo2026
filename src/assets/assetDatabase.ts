@@ -65,16 +65,14 @@ function imageAssetCreateTexture(asset: ImageAsset, descriptor: AssetDescriptor,
 }
 
 async function loadImageAsset(descriptor: AssetDescriptor): Promise<ImageAsset> {
-	console.log("loadImageAsset");
 	const asset: ImageAsset = {
 		type: "IMAGE",
 		image: null,
 	};
-	
-	console.log(descriptor.url.href);
+
 	const response = await fetch(descriptor.url);
 	asset.image = await createImageBitmap(await response.blob());
-	
+
 	return asset;
 }
 
@@ -114,7 +112,6 @@ export class AssetDatabase {
 	}
 
 	private onAssetLoaded(asset: Asset, descriptor: AssetDescriptor, onLoaded: AssetOnLoadCallback) {
-		console.log("onAssetLoaded");
 		this.assets.set(descriptor.name, asset);
 		if (onLoaded) {
 			onLoaded(asset, descriptor);
@@ -122,13 +119,16 @@ export class AssetDatabase {
 	}
 
 	private async loadAsset(descriptor: AssetDescriptor, loadAsset: AssetLoadCallback, onLoad: AssetOnLoadCallback) {
-		console.log("loadAsset");
 		await (async () => {
-			const asset = await loadAsset(descriptor);
-			this.onAssetLoaded(asset, descriptor, onLoad);
+			try {
+				const asset = await loadAsset(descriptor);
+				this.onAssetLoaded(asset, descriptor, onLoad);
+			} catch (error) {
+				console.error(`Unable to load manifest asset ${descriptor.name} @ ${descriptor.url}.`);
+			}
 		})();
 	}
-	
+
 	// private async loadImage(descriptor: AssetDescriptor, onImageLoaded: AssetOnLoadCallback) {
 	// 	this.assets.set(descriptor.name, {
 	// 		type: "IMAGE",

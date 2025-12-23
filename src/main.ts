@@ -29,8 +29,10 @@ async function init() {
 
 	quitIfWebGPUNotAvailable(adapter, device);
 
+	const assetDatabaseInitStart = performance.now();
 	var assetDatabase = await initAssetDatabase(GlobalAssetManifest, device);
-	console.log("asset database initialized!");
+	const assetDatabaseInitDuration = performance.now() - assetDatabaseInitStart;
+	console.log(`Asset database initialized in ${assetDatabaseInitDuration / 1000.0}s`);
 
 	globalThis.GameInstance = new Game(canvas, device, assetDatabase);
 }
