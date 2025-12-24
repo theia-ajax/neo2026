@@ -38,5 +38,43 @@ export const GlobalAssetManifest: AssetManifest = {
 				textureFormat: 'rgba8unorm',
 			}
 		},
+		{
+			name: "roots_1_diffuse",
+			type: "IMAGE",
+			url: new URL('textures/Color Maps/roots_1.png', import.meta.url),
+			importConfig: {
+				type: "IMAGE",
+				textureFormat: 'rgba8unorm',
+			}
+		},
+		{
+			name: "roots_1_normal",
+			type: "IMAGE",
+			url: new URL('textures/Normal Maps/roots_1_normal.png', import.meta.url),
+			importConfig: {
+				type: "IMAGE",
+				textureFormat: 'rgba8unorm',
+			}
+		},
+		{
+			name: "ceiling_1_diffuse",
+			type: "IMAGE",
+			url: new URL('textures/Color Maps/hl_office_complex_style_drop_ceiling_1.png', import.meta.url),
+			importConfig: {
+				type: "IMAGE",
+				textureFormat: 'rgba8unorm',
+			}
+		},
+		{
+			name: "ceiling_1_normal",
+			type: "IMAGE",
+			url: new URL('textures/Normal Maps/hl_office_complex_style_drop_ceiling_1_normal.png', import.meta.url),
+			importConfig: {
+				type: "IMAGE",
+				textureFormat: 'rgba8unorm',
+			}
+		},
+
+		
 	]
 }

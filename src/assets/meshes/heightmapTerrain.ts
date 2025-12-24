@@ -1,7 +1,7 @@
 import type { Mesh } from "@/render/mesh"
 import { vec2, vec3, type Vec2, type Vec3 } from "wgpu-matrix";
 
-const kVertexSizeFloats = 8;
+const kVertexSizeFloats = 14;
 const kVertexSizeBytes = kVertexSizeFloats * 4;
 
 function sampleHeight(imageData: ImageData, x: number, z: number) {
@@ -19,11 +19,56 @@ function getVertexPos(mesh: Mesh, vertexId: number): Vec3 {
 		mesh.vertices[offset + 2]);
 }
 
+function getVertexNorm(mesh: Mesh, vertexId: number): Vec3 {
+	const offset = vertexId * kVertexSizeFloats;
+	return vec3.create(
+		mesh.vertices[offset + 3],
+		mesh.vertices[offset + 4],
+		mesh.vertices[offset + 5]);
+}
+
+function getVertexUv(mesh: Mesh, vertexId: number): Vec2 {
+	const offset = vertexId * kVertexSizeFloats;
+	return vec2.create(
+		mesh.vertices[offset + 6],
+		mesh.vertices[offset + 7]);
+}
+
+function getVertexTangent(mesh: Mesh, vertexId: number): Vec3 {
+	const offset = vertexId * kVertexSizeFloats;
+	return vec3.create(
+		mesh.vertices[offset + 8],
+		mesh.vertices[offset + 9],
+		mesh.vertices[offset + 10]);
+}
+
+function getVertexBitangent(mesh: Mesh, vertexId: number): Vec3 {
+	const offset = vertexId * kVertexSizeFloats;
+	return vec3.create(
+		mesh.vertices[offset + 11],
+		mesh.vertices[offset + 12],
+		mesh.vertices[offset + 13]);
+}
+
 function setVertexNorm(mesh: Mesh, vertexId: number, norm: Vec3) {
 	const offset = vertexId * kVertexSizeFloats;
 	mesh.vertices[offset + 3] = norm.at(0);
 	mesh.vertices[offset + 4] = norm.at(1);
 	mesh.vertices[offset + 5] = norm.at(2);
+}
+
+function setVertexTangent(mesh: Mesh, vertexId: number, tangent: Vec3) {
+	const offset = vertexId * kVertexSizeFloats;
+	mesh.vertices[offset + 8] = tangent.at(0);
+	mesh.vertices[offset + 9] = tangent.at(1);
+	mesh.vertices[offset + 10] = tangent.at(2);
+}
+
+function setVertexBitangent(mesh: Mesh, vertexId: number, bitangent: Vec3) {
+	const offset = vertexId * kVertexSizeFloats;
+	mesh.vertices[offset + 11] = bitangent.at(0);
+	mesh.vertices[offset + 12] = bitangent.at(1);
+	mesh.vertices[offset + 13] = bitangent.at(2);
 }
 
 function setVertex(mesh: Mesh, vertexId: number, pos: Vec3, norm: Vec3, uv: Vec2) {
@@ -102,7 +147,10 @@ function createDiffuseTerrainMesh(heightmapData: ImageData, options?: CreateHeig
 	}
 
 	const getPos = (id) => { return getVertexPos(heightmapMesh, id); }
+	const getTangent = (id) => { return getVertexTangent(heightmapMesh, id); }
 	const setNorm = (id, norm) => { setVertexNorm(heightmapMesh, id, norm); }
+	const setTangent = (id, tangent) => { setVertexTangent(heightmapMesh, id, tangent); }
+	const setBitangent = (id, bitangent) => { setVertexBitangent(heightmapMesh, id, bitangent); }
 
 	for (let z = 0; z < height; z++) {
 		for (let x = 0; x < width; x++) {
@@ -121,6 +169,9 @@ function createDiffuseTerrainMesh(heightmapData: ImageData, options?: CreateHeig
 			const i1 = i0 + 1;
 			const i2 = i0 + width;
 			const i3 = i2 + 1;
+
+			const tangent = vec3.normalize(vec3.sub(getPos(i0), getPos(i2)));
+			setTangent(i0, tangent);
 
 			pushTriangle(i0, i2, i3);
 			pushTriangle(i1, i0, i3);
@@ -147,7 +198,10 @@ function createDiffuseTerrainMesh(heightmapData: ImageData, options?: CreateHeig
 			const down = getPos(downId);
 			const a = vec3.sub(right, left);
 			const b = vec3.sub(down, up);
-			setNorm(vertexId, vec3.normalize(vec3.cross(b, a)));
+			const normal = vec3.normalize(vec3.cross(b, a));
+			setNorm(vertexId, normal);
+			const bitangent = vec3.cross(normal, getTangent(vertexId));
+			setBitangent(vertexId, bitangent);
 		}
 		onProgress(z / height / 2 + 0.5);
 	}

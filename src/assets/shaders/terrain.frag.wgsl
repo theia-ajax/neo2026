@@ -15,7 +15,9 @@ fn main(
 	// return mix(vec4f(0, 0.0, 0.0, 1), color, fragPosition.y);
 	var uv = fragUV/8;
 	// return vec4f(uv.x, 0.0, uv.y, 1.0);
-	var prod = dot(fragNorm, normalize(vec4f(1.1, 0.8, 0.4, 1)));
-	// return mix(vec4f(0,0.1,0.1,1), color * prod, clamp((fragPosition.y - 6)/8,0,1));
-	return normalColor;
+	var prod = dot(fragNorm + normalColor, normalize(vec4f(1.1, 0.8, 0.4, 1)));
+	var baseColor = color * prod;
+	
+	return mix(vec4f(0,0.1,0.1,1), baseColor, clamp((fragPosition.y - 6)/8,0,1));
+	// return normalColor;
 }

@@ -1,7 +1,5 @@
 import { mat4, vec3, type Mat4 } from 'wgpu-matrix';
-import basicVertWGSL from '@shaders/basic.vert.wgsl?raw'
-import vertexPositionColorWGSL from '@shaders/vertexPositionColor.frag.wgsl?raw'
-import terrainWGSL from '@shaders/terrain.frag.wgsl?raw'
+import terrainWGSL from '@shaders/terrain.wgsl?raw'
 import { getDevicePixelContentBoxSize } from '@/render/rendererUtils';
 import { GameState } from '@/gamestate';
 import { SampleBuffer } from '@/util';
@@ -22,6 +20,7 @@ export class Renderer {
 	private uniformBuffer: GPUBuffer;
 	private uniformBindGroup: GPUBindGroup;
 	private modelViewProjection: Mat4;
+	private modelView: Mat4;
 	private timing: RenderTiming;
 	private resizeObserver: ResizeObserver;
 	private sampler: GPUSampler;
@@ -31,7 +30,8 @@ export class Renderer {
 
 		this.device = device;
 		this.context = canvas.getContext('webgpu') as GPUCanvasContext;
-		this.modelViewProjection = mat4.create();
+		this.modelViewProjection = mat4.identity();
+		this.modelView = mat4.identity();
 
 		this.presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 		this.context.configure({
@@ -41,15 +41,17 @@ export class Renderer {
 
 		this.timing = new RenderTiming(this.device);
 
+		const terrainShader = this.device.createShaderModule({
+			code: terrainWGSL,
+		});
 		this.pipeline = this.device.createRenderPipeline({
 			layout: 'auto',
 			vertex: {
-				module: this.device.createShaderModule({
-					code: basicVertWGSL,
-				}),
+				module: terrainShader,
+				entryPoint: "vertex_main",
 				buffers: [
 					{
-						arrayStride: 8 * 4,
+						arrayStride: 14 * 4,
 						attributes: [
 							{
 								shaderLocation: 0,
@@ -66,14 +68,23 @@ export class Renderer {
 								offset: 6 * 4,
 								format: 'float32x2',
 							},
+							{
+								shaderLocation: 3,
+								offset: 8 * 4,
+								format: 'float32x3',
+							},
+							{
+								shaderLocation: 4,
+								offset: 11 * 4,
+								format: 'float32x3',
+							},
 						]
 					}
 				]
 			},
 			fragment: {
-				module: this.device.createShaderModule({
-					code: terrainWGSL,
-				}),
+				module: terrainShader,
+				entryPoint: "fragment_main",
 				targets: [
 					{
 						format: this.presentationFormat,
@@ -104,7 +115,7 @@ export class Renderer {
 		});
 
 		this.uniformBuffer = device.createBuffer({
-			size: 4 * 16,
+			size: 8 * 16,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
 
@@ -144,11 +155,12 @@ export class Renderer {
 
 	public draw(gameState: GameState) {
 		const aspect = this.context.canvas.width / this.context.canvas.height;
-		const projection = mat4.perspective(70 * Math.PI / 180.0, aspect, 1, 1000.0);
+		const projection = mat4.perspective(70 * Math.PI / 180.0, aspect, 0.01, 1000.0);
 		const view = gameState.camera.view;
 
 		const model = gameState.terrain.getModelMatrix(gameState);
-		mat4.multiply(projection, mat4.multiply(view, model), this.modelViewProjection);
+		mat4.multiply(view, model, this.modelView);
+		mat4.multiply(projection, this.modelView, this.modelViewProjection);
 
 		this.device.queue.writeBuffer(
 			this.uniformBuffer,
@@ -156,6 +168,13 @@ export class Renderer {
 			this.modelViewProjection.buffer,
 			this.modelViewProjection.byteOffset,
 			this.modelViewProjection.byteLength);
+
+		this.device.queue.writeBuffer(
+			this.uniformBuffer,
+			16 * 4,
+			this.modelView.buffer,
+			this.modelView.byteOffset,
+			this.modelView.byteLength);
 
 		const commandEncoder = this.device.createCommandEncoder();
 

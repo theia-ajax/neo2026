@@ -104,8 +104,8 @@ export class Game {
 				this.gameState.terrain.initFromHeightmapMesh(this.device, mesh);
 			});
 
-		this.gameState.texture = createTextureFromImage(this.device, this.assets.getAsset("grass_1_diffuse").image);
-		this.gameState.normalTexture = createTextureFromImage(this.device, this.assets.getAsset('grass_1_normal').image);
+		this.gameState.texture = createTextureFromImage(this.device, this.assets.getAsset("roots_1_diffuse").image);
+		this.gameState.normalTexture = createTextureFromImage(this.device, this.assets.getAsset('roots_1_normal').image);
 		this.gameState.terrain = new Terrain();
 
 		this.gameState.camera = new Camera();

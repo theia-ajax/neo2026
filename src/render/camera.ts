@@ -71,7 +71,7 @@ export class CameraController implements ICameraController, ICamera {
 export class TankCameraController extends CameraController {
 	private yaw = 0;
 
-	moveSpeed: number = 25;
+	moveSpeed: number = 2;
 	turnRateDegrees: number = 85.0; 
 
 	constructor(camera?: Camera) {

@@ -22,8 +22,7 @@ worker.onmessage = (e) => {
 	if (e.data.mesh) {
 		worker.onComplete(e.data.mesh);
 		activeWorkers.splice(workerIndex, 1);
-	}
-	else if (worker.onProgress !== undefined && e.data.progress) {
+	} else if (worker.onProgress !== undefined && e.data.progress) {
 		worker.onProgress(e.data.progress);
 	}
 }
