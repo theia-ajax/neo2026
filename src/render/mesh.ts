@@ -7,15 +7,19 @@ export interface RenderableOptions {
 
 export interface Mesh {
 	vertices: Float32Array;
-	indices: Uint16Array | Uint32Array;
+	indices?: Uint16Array | Uint32Array;
 	vertexStride: number;
 	meta?: any;
 }
 
+export type RenderMeshDrawMode = 'index' | 'vertex';
+
 export interface MeshRenderable {
+	drawMode: RenderMeshDrawMode,
 	vertexBuffer: GPUBuffer;
-	indexBuffer: GPUBuffer;
-	indexCount: number;
+	indexBuffer?: GPUBuffer;
+	indexCount?: number;
+	vertexCount?: number,
 }
 
 export function createMeshRenderable(device: GPUDevice, mesh: Mesh, options?: RenderableOptions): MeshRenderable {
@@ -34,26 +38,35 @@ export function createMeshRenderable(device: GPUDevice, mesh: Mesh, options?: Re
 	new Float32Array(vertexBuffer.getMappedRange()).set(mesh.vertices);
 	vertexBuffer.unmap();
 
-	const indexBuffer = device.createBuffer({
-		size: mesh.indices.byteLength,
-		usage: indexBufferUsage,
-		mappedAtCreation: true,
-	});
-	if (mesh.indices.byteLength === mesh.indices.length * Uint16Array.BYTES_PER_ELEMENT) {
-		new Uint16Array(indexBuffer.getMappedRange()).set(mesh.indices);
-	}
-	else {
-		new Uint32Array(indexBuffer.getMappedRange()).set(mesh.indices);
-	}
-	indexBuffer.unmap();
+	if (mesh.indices !== null && mesh.indices !== undefined) {
+		const indexBuffer = device.createBuffer({
+			size: mesh.indices.byteLength,
+			usage: indexBufferUsage,
+			mappedAtCreation: true,
+		});
+		if (mesh.indices.byteLength === mesh.indices.length * Uint16Array.BYTES_PER_ELEMENT) {
+			new Uint16Array(indexBuffer.getMappedRange()).set(mesh.indices);
+		}
+		else {
+			new Uint32Array(indexBuffer.getMappedRange()).set(mesh.indices);
+		}
+		indexBuffer.unmap();
 
-	return {
-		vertexBuffer,
-		indexBuffer,
-		indexCount: mesh.indices.length,
-	};
+		return {
+			drawMode: 'index',
+			vertexBuffer: vertexBuffer,
+			indexBuffer: indexBuffer,
+			indexCount: mesh.indices.length,
+		};
+	} else {
+		return {
+			drawMode: 'vertex',
+			vertexBuffer: vertexBuffer,
+			vertexCount: mesh.vertices.byteLength / mesh.vertexStride,
+		}
+	}
 }
 
-export function getMeshVertex(mesh: Mesh, vertexId: number){
+export function getMeshVertex(mesh: Mesh, vertexId: number) {
 	return mesh.vertices.slice(vertexId * (mesh.vertexStride / 4), (vertexId + 1) * (mesh.vertexStride / 4));
 }

@@ -33,6 +33,9 @@ struct VertexOutput {
 }
 
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
+@group(0) @binding(1) var textureSampler: sampler;
+@group(0) @binding(2) var diffuseMap: texture_2d<f32>;
+@group(0) @binding(3) var normalMap: texture_2d<f32>;
 
 @vertex
 fn vertex_main(
@@ -48,10 +51,6 @@ fn vertex_main(
 	return output;
 }
 
-
-@group(0) @binding(1) var textureSampler: sampler;
-@group(0) @binding(2) var diffuseMap: texture_2d<f32>;
-@group(0) @binding(3) var normalMap: texture_2d<f32>;
 
 @fragment
 fn fragment_main(

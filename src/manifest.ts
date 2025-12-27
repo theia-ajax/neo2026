@@ -74,7 +74,60 @@ export const GlobalAssetManifest: AssetManifest = {
 				textureFormat: 'rgba8unorm',
 			}
 		},
-
+		{
+			name: "skybox01_px",
+			type: "IMAGE",
+			url: new URL('textures/skyboxes/skybox01_px.png', import.meta.url),
+			importConfig: {
+				type: "IMAGE",
+				textureFormat: 'rgba8unorm',
+			},
+		},
+		{
+			name: "skybox01_nx",
+			type: "IMAGE",
+			url: new URL('textures/skyboxes/skybox01_nx.png', import.meta.url),
+			importConfig: {
+				type: "IMAGE",
+				textureFormat: 'rgba8unorm',
+			},
+		},
+		{
+			name: "skybox01_py",
+			type: "IMAGE",
+			url: new URL('textures/skyboxes/skybox01_py.png', import.meta.url),
+			importConfig: {
+				type: "IMAGE",
+				textureFormat: 'rgba8unorm',
+			},
+		},
+		{
+			name: "skybox01_ny",
+			type: "IMAGE",
+			url: new URL('textures/skyboxes/skybox01_ny.png', import.meta.url),
+			importConfig: {
+				type: "IMAGE",
+				textureFormat: 'rgba8unorm',
+			},
+		},
+		{
+			name: "skybox01_pz",
+			type: "IMAGE",
+			url: new URL('textures/skyboxes/skybox01_pz.png', import.meta.url),
+			importConfig: {
+				type: "IMAGE",
+				textureFormat: 'rgba8unorm',
+			},
+		},
+		{
+			name: "skybox01_nz",
+			type: "IMAGE",
+			url: new URL('textures/skyboxes/skybox01_nz.png', import.meta.url),
+			importConfig: {
+				type: "IMAGE",
+				textureFormat: 'rgba8unorm',
+			},
+		},
 		
 	]
 }

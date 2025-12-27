@@ -11,7 +11,8 @@ import { createInputHandler, type InputHandler } from "@/input";
 import { Camera, TankCameraController } from "@/render/camera"
 import getImageData from "./assets/imageData"
 import { createTerrainMeshFromHeightmapAsync } from "@/assets/meshes/heightmapTerrainAsync"
-import type { Mesh } from "@/render/mesh"
+import { createMeshRenderable, type Mesh } from "@/render/mesh"
+import { cubePositionOnly } from "@/assets/meshes/cube"
 
 export interface GameTime {
 	deltaSec: number;
@@ -93,6 +94,8 @@ export class Game {
 			timeScale: 1.0,
 		}
 
+
+		this.gameState.terrain = new Terrain();
 		const heightmapData = getImageData(this.assets.getAsset('heightmap').image);
 		createTerrainMeshFromHeightmapAsync(
 			heightmapData,
@@ -103,10 +106,36 @@ export class Game {
 			(mesh: Mesh) => {
 				this.gameState.terrain.initFromHeightmapMesh(this.device, mesh);
 			});
+		this.gameState.terrainTexture = createTextureFromImage(this.device, this.assets.getAsset("roots_1_diffuse").image);
+		this.gameState.terrainNormalTexture = createTextureFromImage(this.device, this.assets.getAsset('roots_1_normal').image);
+		
+		this.gameState.skyboxRenderMesh = createMeshRenderable(this.device, cubePositionOnly);
 
-		this.gameState.texture = createTextureFromImage(this.device, this.assets.getAsset("roots_1_diffuse").image);
-		this.gameState.normalTexture = createTextureFromImage(this.device, this.assets.getAsset('roots_1_normal').image);
-		this.gameState.terrain = new Terrain();
+		const skyboxImages = [
+			this.assets.getAsset("skybox01_px").image,
+			this.assets.getAsset("skybox01_nx").image,
+			this.assets.getAsset("skybox01_py").image,
+			this.assets.getAsset("skybox01_ny").image,
+			this.assets.getAsset("skybox01_pz").image,
+			this.assets.getAsset("skybox01_nz").image,
+		]
+		const skyboxTexture = device.createTexture({
+			label: 'skybox cubemap',
+			dimension: '2d',
+			textureBindingViewDimension: 'cube',
+			size: [skyboxImages[0].width, skyboxImages[0].height, 6],
+			format: 'rgba8unorm',
+			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+		});
+		for (let i = 0; i < skyboxImages.length; i++) {
+			const image = skyboxImages[i];
+			device.queue.copyExternalImageToTexture(
+				{ source: image },
+				{ texture: skyboxTexture, origin: [0, 0, i] },
+				[image.width, image.height],
+			);
+		}
+		this.gameState.skyboxTexture = skyboxTexture;
 
 		this.gameState.camera = new Camera();
 		this.gameState.cameraController = new TankCameraController(this.gameState.camera);

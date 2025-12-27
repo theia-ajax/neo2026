@@ -1,5 +1,7 @@
 import { mat4, vec3, type Mat4 } from 'wgpu-matrix';
+import * as debug from "@/debug/debug"
 import terrainWGSL from '@shaders/terrain.wgsl?raw'
+import skyboxWGSL from '@shaders/skybox.wgsl?raw'
 import { getDevicePixelContentBoxSize } from '@/render/rendererUtils';
 import { GameState } from '@/gamestate';
 import { SampleBuffer } from '@/util';
@@ -13,12 +15,14 @@ const MSAA_SAMPLE_COUNT: number = 4;
 export class Renderer {
 	private device: GPUDevice;
 	private context: GPUCanvasContext;
-	private pipeline: GPURenderPipeline;
+	private skyboxPipeline: GPURenderPipeline;
+	private terrainPipeline: GPURenderPipeline;
 	private presentationFormat: GPUTextureFormat;
 	private renderTargetTexture: GPUTexture | undefined = undefined;
 	private depthTexture: GPUTexture;
 	private uniformBuffer: GPUBuffer;
-	private uniformBindGroup: GPUBindGroup;
+	private skyboxBindGroup: GPUBindGroup;
+	private terrainBindGroup: GPUBindGroup;
 	private modelViewProjection: Mat4;
 	private modelView: Mat4;
 	private timing: RenderTiming;
@@ -41,10 +45,80 @@ export class Renderer {
 
 		this.timing = new RenderTiming(this.device);
 
+		const skyboxShader = this.device.createShaderModule({ code: skyboxWGSL });
+		this.skyboxPipeline = this.device.createRenderPipeline({
+			label: 'skybox',
+			layout: this.device.createPipelineLayout({
+				bindGroupLayouts: [
+					this.device.createBindGroupLayout({
+						entries: [
+							{
+								binding: 0,
+								visibility: GPUShaderStage.VERTEX,
+								buffer: {type: 'uniform'}
+							},
+							{
+								binding: 1,
+								visibility: GPUShaderStage.FRAGMENT,
+								sampler: {
+									type: "filtering"
+								}
+							},
+							{
+								binding: 2,
+								visibility: GPUShaderStage.FRAGMENT,
+								texture: {
+									sampleType: "float",
+									viewDimension: "cube",
+									multisampled: false,
+								}
+							}
+						]
+					})
+				]
+			}),
+			vertex: {
+				module: skyboxShader,
+				entryPoint: "vertex_main",
+				buffers: [
+					{
+						arrayStride: 4 * 4,
+						attributes: [
+							{
+								shaderLocation: 0,
+								offset: 0,
+								format: 'float32x4',
+							},
+						]
+					}
+				]
+			},
+			fragment: {
+				module: skyboxShader,
+				entryPoint: "fragment_main",
+				targets: [
+					{
+						format: this.presentationFormat,
+					}
+				]
+			},
+			multisample: { count: MSAA_SAMPLE_COUNT },
+			primitive: {
+				topology: 'triangle-list',
+				cullMode: 'none',
+			},
+			depthStencil: {
+				depthWriteEnabled: true,
+				depthCompare: 'less',
+				format: 'depth24plus',
+			}
+		});
+
 		const terrainShader = this.device.createShaderModule({
 			code: terrainWGSL,
 		});
-		this.pipeline = this.device.createRenderPipeline({
+		this.terrainPipeline = this.device.createRenderPipeline({
+			label: 'terrain',
 			layout: 'auto',
 			vertex: {
 				module: terrainShader,
@@ -119,8 +193,9 @@ export class Renderer {
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
 
-		this.uniformBindGroup = this.device.createBindGroup({
-			layout: this.pipeline.getBindGroupLayout(0),
+		this.skyboxBindGroup = this.device.createBindGroup({
+			label: 'skybox',
+			layout: this.skyboxPipeline.getBindGroupLayout(0),
 			entries: [
 				{
 					binding: 0,
@@ -134,11 +209,32 @@ export class Renderer {
 				},
 				{
 					binding: 2,
-					resource: gameState.texture.createView(),
+					resource: gameState.skyboxTexture.createView({ dimension: 'cube' }),
+				}
+			]
+		});
+
+		this.terrainBindGroup = this.device.createBindGroup({
+			label: 'terrain',
+			layout: this.terrainPipeline.getBindGroupLayout(0),
+			entries: [
+				{
+					binding: 0,
+					resource: {
+						buffer: this.uniformBuffer,
+					},
+				},
+				{
+					binding: 1,
+					resource: this.sampler,
+				},
+				{
+					binding: 2,
+					resource: gameState.terrainTexture.createView(),
 				},
 				{
 					binding: 3,
-					resource: gameState.normalTexture.createView(),
+					resource: gameState.terrainNormalTexture.createView(),
 				}
 			],
 		});
@@ -204,21 +300,28 @@ export class Renderer {
 			},
 		};
 
+		const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
+		{
+			passEncoder.setPipeline(this.skyboxPipeline);
+			passEncoder.setBindGroup(0, this.skyboxBindGroup);
+			passEncoder.setVertexBuffer(0, gameState.skyboxRenderMesh.vertexBuffer);
+			passEncoder.draw(gameState.skyboxRenderMesh.vertexCount);
+			debug.log(gameState.skyboxRenderMesh.vertexCount.toString());
+		}
+
 		if (gameState.terrain.renderMesh) {
-			const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
-			passEncoder.setPipeline(this.pipeline);
-			passEncoder.setBindGroup(0, this.uniformBindGroup);
+			passEncoder.setPipeline(this.terrainPipeline);
+			passEncoder.setBindGroup(0, this.terrainBindGroup);
 			passEncoder.setVertexBuffer(0, gameState.terrain.renderMesh.vertexBuffer);
 			passEncoder.setIndexBuffer(gameState.terrain.renderMesh.indexBuffer, "uint32");
 			passEncoder.drawIndexed(gameState.terrain.renderMesh.indexCount);
-			passEncoder.end();
-
-			this.timing.start(commandEncoder);
-
-			const commandBuffer = commandEncoder.finish();
-			this.device.queue.submit([commandBuffer]);
 		}
 
+		passEncoder.end();
+
+		this.timing.start(commandEncoder);
+		const commandBuffer = commandEncoder.finish();
+		this.device.queue.submit([commandBuffer]);
 		this.timing.finish();
 	}
 

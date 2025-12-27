@@ -10,8 +10,10 @@ export class GameState {
 	public camera: Camera;
 	public cameraController: TankCameraController;
 	public input: Input;
+	public skyboxRenderMesh: MeshRenderable;
+	public skyboxTexture: GPUTexture;
 	public terrain: Terrain;
-	public texture: GPUTexture;
-	public normalTexture: GPUTexture;
-	public renderMesh: MeshRenderable;
+	public terrainTexture: GPUTexture;
+	public terrainNormalTexture: GPUTexture;
+	public terrainRenderMesh: MeshRenderable;
 }
