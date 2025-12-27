@@ -33,10 +33,17 @@ export class Camera implements ICamera {
 	get position() { return this.position_; }
 	set position(v: Vec3) { vec3.copy(v, this.position_); }
 
-	lookAt(eye: Vec3, target: Vec3, up: Vec3)
-	{
+	lookAt(eye: Vec3, target: Vec3, up: Vec3) {
 		mat4.lookAt(eye, target, up, this.matrix);
 		mat4.invert(this.matrix, this.view);
+	}
+
+	viewNoTranslation() {
+		let v = mat4.copy(this.view);
+		v[12] = 0;
+		v[13] = 0;
+		v[14] = 0;
+		return v;
 	}
 }
 
@@ -72,7 +79,7 @@ export class TankCameraController extends CameraController {
 	private yaw = 0;
 
 	moveSpeed: number = 2;
-	turnRateDegrees: number = 85.0; 
+	turnRateDegrees: number = 85.0;
 
 	constructor(camera?: Camera) {
 		super(camera);
@@ -94,7 +101,7 @@ export class TankCameraController extends CameraController {
 		vec3.addScaled(velocity, this.up, gameState.input.axes.move_z, velocity);
 
 		let moveSpeed = this.moveSpeed;
-		if (gameState.input.buttons.sprint > 0) moveSpeed *= 2;
+		if (gameState.input.buttons.sprint > 0) moveSpeed *= 20;
 
 		vec3.addScaled(position, velocity, moveSpeed * dt, this.position);
 

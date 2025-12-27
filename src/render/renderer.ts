@@ -1,12 +1,9 @@
 import { mat4, vec3, type Mat4 } from 'wgpu-matrix';
-import * as debug from "@/debug/debug"
 import terrainWGSL from '@shaders/terrain.wgsl?raw'
 import skyboxWGSL from '@shaders/skybox.wgsl?raw'
 import { getDevicePixelContentBoxSize } from '@/render/rendererUtils';
 import { GameState } from '@/gamestate';
 import { SampleBuffer } from '@/util';
-import { createTextureBindGroup, createTextureFromImage } from './texture';
-import '@/assets/meshes/heightmapTerrain'
 
 // webgpu only supports 1 or 4 and 1 fails with the following error on chrome/windows:
 // Cannot set [TextureView of Texture "D3DImageBacking_D3DSharedImage_WebGPUSwapBufferProvider_Pid:11684"] as a resolve target when the color attachment [TextureView of Texture "Render Target Texture"] has a sample count of 1.
@@ -21,6 +18,7 @@ export class Renderer {
 	private renderTargetTexture: GPUTexture | undefined = undefined;
 	private depthTexture: GPUTexture;
 	private uniformBuffer: GPUBuffer;
+	private skyboxUniformBuffer: GPUBuffer;
 	private skyboxBindGroup: GPUBindGroup;
 	private terrainBindGroup: GPUBindGroup;
 	private modelViewProjection: Mat4;
@@ -55,7 +53,7 @@ export class Renderer {
 							{
 								binding: 0,
 								visibility: GPUShaderStage.VERTEX,
-								buffer: {type: 'uniform'}
+								buffer: { type: 'uniform' }
 							},
 							{
 								binding: 1,
@@ -108,7 +106,7 @@ export class Renderer {
 				cullMode: 'none',
 			},
 			depthStencil: {
-				depthWriteEnabled: true,
+				depthWriteEnabled: false,
 				depthCompare: 'less',
 				format: 'depth24plus',
 			}
@@ -189,7 +187,12 @@ export class Renderer {
 		});
 
 		this.uniformBuffer = device.createBuffer({
-			size: 8 * 16,
+			size: 4 * 4 * 4 * 3,
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+		});
+
+		this.skyboxUniformBuffer = device.createBuffer({
+			size: 4 * 4 * 4,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
 
@@ -200,7 +203,7 @@ export class Renderer {
 				{
 					binding: 0,
 					resource: {
-						buffer: this.uniformBuffer,
+						buffer: this.skyboxUniformBuffer,
 					},
 				},
 				{
@@ -254,23 +257,39 @@ export class Renderer {
 		const projection = mat4.perspective(70 * Math.PI / 180.0, aspect, 0.01, 1000.0);
 		const view = gameState.camera.view;
 
+		const skyboxViewProjection = mat4.multiply(projection, gameState.camera.viewNoTranslation());
+
+		this.device.queue.writeBuffer(
+			this.skyboxUniformBuffer,
+			0,
+			skyboxViewProjection.buffer,
+			skyboxViewProjection.byteOffset,
+			skyboxViewProjection.byteLength
+		);
+
 		const model = gameState.terrain.getModelMatrix(gameState);
+
 		mat4.multiply(view, model, this.modelView);
 		mat4.multiply(projection, this.modelView, this.modelViewProjection);
 
 		this.device.queue.writeBuffer(
 			this.uniformBuffer,
 			0,
-			this.modelViewProjection.buffer,
-			this.modelViewProjection.byteOffset,
-			this.modelViewProjection.byteLength);
-
+			model.buffer,
+			model.byteOffset,
+			model.byteLength);
 		this.device.queue.writeBuffer(
 			this.uniformBuffer,
 			16 * 4,
-			this.modelView.buffer,
-			this.modelView.byteOffset,
-			this.modelView.byteLength);
+			view.buffer,
+			view.byteOffset,
+			view.byteLength);
+		this.device.queue.writeBuffer(
+			this.uniformBuffer,
+			32 * 4,
+			projection.buffer,
+			projection.byteOffset,
+			projection.byteLength);
 
 		const commandEncoder = this.device.createCommandEncoder();
 
@@ -282,7 +301,7 @@ export class Renderer {
 				{
 					view: renderTargetView,
 					resolveTarget: this.context.getCurrentTexture().createView(),
-					clearValue: [0.0, 0.1, 0.1, 1.0],
+					clearValue: [1.0, 0.0, 1.0, 1.0],
 					loadOp: 'clear',
 					storeOp: 'store',
 				},
@@ -300,24 +319,23 @@ export class Renderer {
 			},
 		};
 
-		const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
+		const renderPass = commandEncoder.beginRenderPass(renderPassDescriptor);
 		{
-			passEncoder.setPipeline(this.skyboxPipeline);
-			passEncoder.setBindGroup(0, this.skyboxBindGroup);
-			passEncoder.setVertexBuffer(0, gameState.skyboxRenderMesh.vertexBuffer);
-			passEncoder.draw(gameState.skyboxRenderMesh.vertexCount);
-			debug.log(gameState.skyboxRenderMesh.vertexCount.toString());
+			renderPass.setPipeline(this.skyboxPipeline);
+			renderPass.setBindGroup(0, this.skyboxBindGroup);
+			renderPass.setVertexBuffer(0, gameState.skyboxRenderMesh.vertexBuffer);
+			renderPass.draw(gameState.skyboxRenderMesh.vertexCount);
 		}
 
 		if (gameState.terrain.renderMesh) {
-			passEncoder.setPipeline(this.terrainPipeline);
-			passEncoder.setBindGroup(0, this.terrainBindGroup);
-			passEncoder.setVertexBuffer(0, gameState.terrain.renderMesh.vertexBuffer);
-			passEncoder.setIndexBuffer(gameState.terrain.renderMesh.indexBuffer, "uint32");
-			passEncoder.drawIndexed(gameState.terrain.renderMesh.indexCount);
+			renderPass.setPipeline(this.terrainPipeline);
+			renderPass.setBindGroup(0, this.terrainBindGroup);
+			renderPass.setVertexBuffer(0, gameState.terrain.renderMesh.vertexBuffer);
+			renderPass.setIndexBuffer(gameState.terrain.renderMesh.indexBuffer, "uint32");
+			renderPass.drawIndexed(gameState.terrain.renderMesh.indexCount);
 		}
 
-		passEncoder.end();
+		renderPass.end();
 
 		this.timing.start(commandEncoder);
 		const commandBuffer = commandEncoder.finish();

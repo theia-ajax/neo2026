@@ -140,7 +140,6 @@ export class Game {
 		this.gameState.camera = new Camera();
 		this.gameState.cameraController = new TankCameraController(this.gameState.camera);
 		this.gameState.camera.position = vec3.create(0, 27.5, 10);
-		// this.gameState.camera.lookAt(vec3.create(0, 15, 0), vec3.create(0, 0, 0), );
 
 		this.renderer = new Renderer(this.canvas, this.device, this.gameState);
 

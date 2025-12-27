@@ -3,8 +3,9 @@ const modeNormalTexture = 1;
 const modeNormalMap = 2;
 
 struct Uniforms {
-	modelViewProjectionMatrix: mat4x4f,
-	modelViewMatrix: mat4x4f,
+	modelMatrix: mat4x4f,
+	viewMatrix: mat4x4f,
+	projectionMatrix: mat4x4f,
 }
 
 struct Lighting {
@@ -42,11 +43,15 @@ fn vertex_main(
 	input: VertexInput
 ) -> VertexOutput {
 	var output : VertexOutput;
-	output.Position = uniforms.modelViewProjectionMatrix * vec4(input.position, 1.0);
-	output.viewPosition = uniforms.modelViewMatrix * vec4f(input.position, 1.0);
-	output.viewNormal = uniforms.modelViewMatrix * vec4(input.normal, 0);
-	output.viewTangent = uniforms.modelViewMatrix * vec4(input.tangent, 0);
-	output.viewBitangent = uniforms.modelViewMatrix * vec4(input.bitangent, 0);
+
+	var modelViewMatrix = uniforms.viewMatrix * uniforms.modelMatrix;
+	var modelViewProjectionMatrix = uniforms.projectionMatrix * modelViewMatrix;
+
+	output.Position = modelViewProjectionMatrix * vec4(input.position, 1.0);
+	output.viewPosition = modelViewMatrix * vec4f(input.position, 1.0);
+	output.viewNormal = modelViewMatrix * vec4(input.normal, 0);
+	output.viewTangent = modelViewMatrix * vec4(input.tangent, 0);
+	output.viewBitangent = modelViewMatrix * vec4(input.bitangent, 0);
 	output.uv = input.uv / 1;
 	return output;
 }

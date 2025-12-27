@@ -1,5 +1,5 @@
 struct Uniforms {
-	modelViewProjectionMatrix: mat4x4f,
+	viewProjectionMatrix: mat4x4f,
 }
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -16,7 +16,7 @@ fn vertex_main(
 	@location(0) position: vec4f,
 ) -> VertexOutput {
 	var output: VertexOutput;
-	output.Position = uniforms.modelViewProjectionMatrix * position;
+	output.Position = uniforms.viewProjectionMatrix * position;
 	output.skyboxPosition = 0.5 * (position + vec4(1.0, 1.0, 1.0, 1.0));
 	return output;
 }
