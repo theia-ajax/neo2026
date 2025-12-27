@@ -1,6 +1,7 @@
 import { mat4, vec3, type Mat4 } from 'wgpu-matrix';
 import terrainWGSL from '@shaders/terrain.wgsl?raw'
 import skyboxWGSL from '@shaders/skybox.wgsl?raw'
+import debugLinesWGSL from '@shaders/debugLines.wgsl?raw'
 import { getDevicePixelContentBoxSize } from '@/render/rendererUtils';
 import { GameState } from '@/gamestate';
 import { SampleBuffer } from '@/util';
@@ -27,6 +28,46 @@ export class Renderer {
 	private resizeObserver: ResizeObserver;
 	private sampler: GPUSampler;
 	private skyboxSampler: GPUSampler;
+	private debugPipeline: GPURenderPipeline;
+	private debugBindGroup: GPUBindGroup;
+	private debugUniformBuffer: GPUBuffer;
+	private debugLinesPositionsVertexBuffer: GPUBuffer;
+	private debugLinesColorsVertexBuffer: GPUBuffer;
+	private debugLinesIndexBuffer: GPUBuffer;
+	private debugLinesVertexCount: number;
+
+	setDebugLines(positions: Float32Array, colors: Float32Array) {
+		this.debugLinesVertexCount = positions.length / 3;
+
+		this.debugLinesPositionsVertexBuffer = this.device.createBuffer({
+			size: positions.byteLength,
+			usage: GPUBufferUsage.VERTEX,
+			mappedAtCreation: true
+		});
+		new Float32Array(this.debugLinesPositionsVertexBuffer.getMappedRange()).set(positions);
+		this.debugLinesPositionsVertexBuffer.unmap();
+
+		this.debugLinesColorsVertexBuffer = this.device.createBuffer({
+			size: colors.byteLength,
+			usage: GPUBufferUsage.VERTEX,
+			mappedAtCreation: true
+		});
+		new Float32Array(this.debugLinesColorsVertexBuffer.getMappedRange()).set(colors);
+		this.debugLinesColorsVertexBuffer.unmap();
+
+		const indices = new Uint32Array(this.debugLinesVertexCount);
+		for (var i = 0; i < this.debugLinesVertexCount; i++) {
+			indices[i] = i;
+		}
+
+		this.debugLinesIndexBuffer = this.device.createBuffer({
+			usage: GPUBufferUsage.INDEX,
+			size: indices.byteLength,
+			mappedAtCreation: true,
+		});
+		new Uint32Array(this.debugLinesIndexBuffer.getMappedRange()).set(indices);
+		this.debugLinesIndexBuffer.unmap();
+	}
 
 	constructor(canvas: HTMLCanvasElement, device: GPUDevice, gameState: GameState) {
 		console.log("Creating Renderer");
@@ -43,6 +84,72 @@ export class Renderer {
 		});
 
 		this.timing = new RenderTiming(this.device);
+
+		const debugLinesShader = this.device.createShaderModule({ code: debugLinesWGSL });
+		this.debugPipeline = this.device.createRenderPipeline({
+			label: 'debugLines',
+			layout: 'auto',
+			vertex: {
+				module: debugLinesShader,
+				entryPoint: "vertex_main",
+				buffers: [
+					{
+						arrayStride: 4 * 3,
+						attributes: [
+							{
+								shaderLocation: 0,
+								offset: 0,
+								format: 'float32x3'
+							}
+						]
+					},
+					{
+						arrayStride: 4 * 4,
+						attributes: [
+							{
+								shaderLocation: 1,
+								offset: 0,
+								format: 'float32x4'
+							}
+						]
+					}
+				]
+			},
+			fragment: {
+				module: debugLinesShader,
+				entryPoint: "fragment_main",
+				targets: [
+					{
+						format: this.presentationFormat
+					}
+				]
+			},
+			multisample: { count: MSAA_SAMPLE_COUNT },
+			primitive: {
+				topology: 'line-list',
+			},
+			depthStencil: {
+				depthWriteEnabled: true,
+				depthCompare: 'less',
+				format: 'depth24plus'
+			}
+		});
+		this.debugUniformBuffer = this.device.createBuffer({
+			size: 4 * 4 * 4,
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+		});
+		this.debugBindGroup = this.device.createBindGroup({
+			label: 'debugLines',
+			layout: this.debugPipeline.getBindGroupLayout(0),
+			entries: [
+				{
+					binding: 0,
+					resource: {
+						buffer: this.debugUniformBuffer,
+					}
+				}
+			]
+		});
 
 		const skyboxShader = this.device.createShaderModule({ code: skyboxWGSL });
 		this.skyboxPipeline = this.device.createRenderPipeline({
@@ -193,7 +300,7 @@ export class Renderer {
 		});
 
 		this.uniformBuffer = device.createBuffer({
-			size: 4 * 4 * 4 * 3,
+			size: 4 * 4 * 4 * 3 + 16,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
 
@@ -263,7 +370,9 @@ export class Renderer {
 		const projection = mat4.perspective(70 * Math.PI / 180.0, aspect, 0.01, 1000.0);
 		const view = gameState.camera.view;
 
+		const viewProjection = mat4.multiply(projection, view);
 		const skyboxViewProjection = mat4.multiply(projection, gameState.camera.viewNoTranslation());
+
 
 		this.device.queue.writeBuffer(
 			this.skyboxUniformBuffer,
@@ -273,10 +382,27 @@ export class Renderer {
 			skyboxViewProjection.byteLength
 		);
 
+		this.device.queue.writeBuffer(
+			this.debugUniformBuffer,
+			0,
+			viewProjection.buffer,
+			viewProjection.byteOffset,
+			viewProjection.byteLength
+		);
+
+
+
 		const model = gameState.terrain.getModelMatrix(gameState);
 
 		mat4.multiply(view, model, this.modelView);
 		mat4.multiply(projection, this.modelView, this.modelViewProjection);
+
+		const timeArray = new Float32Array(4);
+		timeArray[0] = gameState.time.elapsedSec;
+		timeArray[1] = gameState.time.elapsedSec;
+		timeArray[2] = gameState.time.elapsedSec;
+		timeArray[3] = gameState.time.elapsedSec;
+		this.device.queue.writeBuffer(this.uniformBuffer, 48 * 4, timeArray.buffer, timeArray.byteOffset, timeArray.byteLength);
 
 		this.device.queue.writeBuffer(
 			this.uniformBuffer,
@@ -331,6 +457,16 @@ export class Renderer {
 			renderPass.setBindGroup(0, this.skyboxBindGroup);
 			renderPass.setVertexBuffer(0, gameState.skyboxRenderMesh.vertexBuffer);
 			renderPass.draw(gameState.skyboxRenderMesh.vertexCount);
+		}
+
+		if (this.debugLinesVertexCount !== undefined) {
+			renderPass.setPipeline(this.debugPipeline);
+			renderPass.setBindGroup(0, this.debugBindGroup);
+			renderPass.setVertexBuffer(0, this.debugLinesPositionsVertexBuffer);
+			renderPass.setVertexBuffer(1, this.debugLinesColorsVertexBuffer);
+			renderPass.setIndexBuffer(this.debugLinesIndexBuffer, "uint32");
+			renderPass.drawIndexed(this.debugLinesVertexCount);
+			// renderPass.draw(this.debugLinesVertexCount);
 		}
 
 		if (gameState.terrain.renderMesh) {

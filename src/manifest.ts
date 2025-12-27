@@ -41,7 +41,7 @@ export const GlobalAssetManifest: AssetManifest = {
 		{
 			name: "roots_1_diffuse",
 			type: "IMAGE",
-			url: new URL('textures/Color Maps/roots_1.png', import.meta.url),
+			url: new URL('textures/Color Maps/water_3.png', import.meta.url),
 			importConfig: {
 				type: "IMAGE",
 				textureFormat: 'rgba8unorm',
@@ -50,7 +50,7 @@ export const GlobalAssetManifest: AssetManifest = {
 		{
 			name: "roots_1_normal",
 			type: "IMAGE",
-			url: new URL('textures/Normal Maps/roots_1_normal.png', import.meta.url),
+			url: new URL('textures/Normal Maps/water_3_normal.png', import.meta.url),
 			importConfig: {
 				type: "IMAGE",
 				textureFormat: 'rgba8unorm',

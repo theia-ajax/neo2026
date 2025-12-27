@@ -1,11 +1,13 @@
 const modeAlbedoTexture = 0;
 const modeNormalTexture = 1;
 const modeNormalMap = 2;
+const modeWeird = 3;
 
 struct Uniforms {
 	modelMatrix: mat4x4f,
 	viewMatrix: mat4x4f,
 	projectionMatrix: mat4x4f,
+	time: vec4f,
 }
 
 struct Lighting {
@@ -31,6 +33,7 @@ struct VertexOutput {
 	@location(2) viewNormal : vec4f,
 	@location(3) viewTangent : vec4f,
 	@location(4) viewBitangent : vec4f,
+	@location(5) time: f32,
 }
 
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
@@ -47,12 +50,19 @@ fn vertex_main(
 	var modelViewMatrix = uniforms.viewMatrix * uniforms.modelMatrix;
 	var modelViewProjectionMatrix = uniforms.projectionMatrix * modelViewMatrix;
 
-	output.Position = modelViewProjectionMatrix * vec4(input.position, 1.0);
-	output.viewPosition = modelViewMatrix * vec4f(input.position, 1.0);
+	var vertPos = vec4f(input.position, 1.0);
+
+	let time = uniforms.time.x;
+	let s = ((sin(time + input.position.x / 1) + cos(time + input.position.z / 1)) + 2) / 4;
+	vertPos.y += s;
+
+	output.Position = modelViewProjectionMatrix * vertPos;
+	output.viewPosition = modelViewMatrix * vertPos;
 	output.viewNormal = modelViewMatrix * vec4(input.normal, 0);
 	output.viewTangent = modelViewMatrix * vec4(input.tangent, 0);
 	output.viewBitangent = modelViewMatrix * vec4(input.bitangent, 0);
 	output.uv = input.uv / 1;
+	output.time = s;
 	return output;
 }
 
@@ -63,7 +73,7 @@ fn fragment_main(
 ) -> @location(0) vec4f {
 	var light : Lighting = Lighting(
 		vec3f(25, 50, 10),
-		modeNormalMap,
+		modeWeird,
 		10000.0,
 		1.0,
 		1.0
@@ -85,6 +95,14 @@ fn fragment_main(
 		}
 		case modeNormalTexture: {
 			return normalSample;
+		}
+		case modeWeird: {
+			let diffuse = albedoSample.rgb;
+			let intensity = (diffuse.r + diffuse.g + diffuse.b);
+			let grey = vec3f(intensity, intensity, intensity);
+			let color1 = vec3f(0, 0.2, 1.0) * grey;
+			let color2 = vec3f(0.8, 1.5, 1.5) * grey;
+			return vec4f(mix(color1, color2, input.time * 0.5), 1.0);
 		}
 		default: {
 			let tanNormal = normalSample.xyz * 2 - 1;

@@ -13,6 +13,8 @@ import getImageData from "./assets/imageData"
 import { createTerrainMeshFromHeightmapAsync } from "@/assets/meshes/heightmapTerrainAsync"
 import { createMeshRenderable, type Mesh } from "@/render/mesh"
 import { cubePositionOnly } from "@/assets/meshes/cube"
+import { Physics } from "@/physics"
+type RAPIER_API = typeof import("@dimforge/rapier3d");
 
 export interface GameTime {
 	deltaSec: number;
@@ -72,11 +74,14 @@ export class Game {
 	private cpuSampler: SampleBuffer;
 	private fpsSampler: SampleBuffer;
 	private inputHandler: InputHandler;
+	private physics: Physics;
 
-	constructor(canvas: HTMLCanvasElement, device: GPUDevice, assets: AssetDatabase) {
+	constructor(canvas: HTMLCanvasElement, device: GPUDevice, assets: AssetDatabase, RAPIER: RAPIER_API) {
 		this.canvas = canvas;
 		this.device = device;
 		this.assets = assets;
+
+		this.physics = new Physics(RAPIER);
 
 		this.inputHandler = createInputHandler(window, canvas);
 
@@ -108,7 +113,7 @@ export class Game {
 			});
 		this.gameState.terrainTexture = createTextureFromImage(this.device, this.assets.getAsset("roots_1_diffuse").image);
 		this.gameState.terrainNormalTexture = createTextureFromImage(this.device, this.assets.getAsset('roots_1_normal').image);
-		
+
 		this.gameState.skyboxRenderMesh = createMeshRenderable(this.device, cubePositionOnly);
 
 		const skyboxImages = [
@@ -139,7 +144,7 @@ export class Game {
 
 		this.gameState.camera = new Camera();
 		this.gameState.cameraController = new TankCameraController(this.gameState.camera);
-		this.gameState.camera.position = vec3.create(0, 27.5, 10);
+		this.gameState.camera.position = vec3.create(0, 30, 25);
 
 		this.renderer = new Renderer(this.canvas, this.device, this.gameState);
 
@@ -182,10 +187,14 @@ export class Game {
 
 	private fixedUpdate(gameState: GameState) {
 		gameState.cameraController?.update(gameState, gameState.time.fixedDeltaSec);
+		this.physics.step();
 		// gameState.terrain.rotation = -gameState.time.elapsedSec * Math.PI * 2 / 256;
 	}
 
 	private render(gameState: GameState) {
+		const { vertices, colors } = this.physics.debugRender;
+		this.renderer.setDebugLines(vertices, colors);
+
 		this.renderer.draw(gameState);
 	}
 

@@ -6,7 +6,9 @@ import { quitIfFeaturesNotAvailable, quitIfWebGPUNotAvailable } from '@/render/r
 import { GlobalAssetManifest } from '@/manifest'
 import getImageData, { initImageData } from '@/assets/imageData';
 
-async function init() {
+type RAPIER_API = typeof import("@dimforge/rapier3d");
+
+async function init(RAPIER: RAPIER_API) {
 	initImageData();
 
 	var canvas = document.querySelector("#canvas") as HTMLCanvasElement;
@@ -34,14 +36,12 @@ async function init() {
 	const assetDatabaseInitDuration = performance.now() - assetDatabaseInitStart;
 	console.log(`Asset database initialized in ${assetDatabaseInitDuration / 1000.0}s`);
 
-	globalThis.GameInstance = new Game(canvas, device, assetDatabase);
+	globalThis.GameInstance = new Game(canvas, device, assetDatabase, RAPIER);
 }
 
-function startInit() {
-	return init();
-}
-
-(async () => {
-	await startInit();
-})();
+import('@dimforge/rapier3d').then(RAPIER => {
+	console.log("rapier initialized");
+	globalThis.RAPIER = RAPIER;
+	(async (RAPIER) => { await init(RAPIER); })(RAPIER);
+});
 
