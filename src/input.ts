@@ -3,6 +3,7 @@ export default interface Input {
 	readonly buttons: {
 		readonly action: number,
 		readonly sprint: number,
+		readonly look: number,
 	},
 	readonly axes: {
 		readonly move_x: number,
@@ -40,6 +41,7 @@ function createEmptyInput(): Input
 		buttons: {
 			action: 0,
 			sprint: 0,
+			look: 0,
 		},
 		axes: {
 			move_x: 0,
@@ -56,6 +58,7 @@ export function createInputHandler(window: Window, canvas: HTMLCanvasElement): I
 	const buttonKeyBindings: Record<string, ButtonKeyBinding> = {
 		Space: { button: 'action' },
 		ShiftLeft: { button: 'sprint' },
+		ControlLeft: { button: 'look' }
 	}
 
 	const axisKeyBindings: Record<string, AxisKeyBinding> = {

@@ -2,6 +2,7 @@ import type { GameTime } from '@/game';
 import type { GameState } from '@/gamestate';
 import { type Mat4, type Vec3, type Vec4, mat4, vec3 } from 'wgpu-matrix';
 import { Mathx } from '@/core/mathx';
+import { utils } from 'wgpu-matrix';
 
 export interface ICamera {
 	matrix: Mat4,
@@ -76,10 +77,12 @@ export class CameraController implements ICameraController, ICamera {
 }
 
 export class TankCameraController extends CameraController {
-	private yaw = 0;
-
 	moveSpeed: number = 2;
 	turnRateDegrees: number = 85.0;
+
+	private yaw = 0;
+	private pitch = 0;
+	private targetPitch: number = 0;
 
 	constructor(camera?: Camera) {
 		super(camera);
@@ -90,15 +93,28 @@ export class TankCameraController extends CameraController {
 			return;
 		}
 
+		const look: boolean = gameState.input.buttons.look > 0;
+
+		if (look) {
+			this.targetPitch = 45 * gameState.input.axes.move_z * Mathx.deg2Rad;
+		}
+		else {
+			this.targetPitch = 0;
+		}
+		this.pitch = utils.lerp(this.pitch, this.targetPitch, 10 * gameState.time.deltaSec);
+
 		const position = vec3.copy(this.position);
 
 		this.yaw -= gameState.input.axes.turn * this.turnRateDegrees * Mathx.deg2Rad * dt;
-		this.activeCamera.matrix = mat4.rotationY(this.yaw);
+		this.activeCamera.matrix = mat4.multiply(mat4.rotationY(this.yaw), mat4.rotationX(this.pitch));
 
 		const velocity = vec3.create();
 		vec3.addScaled(velocity, this.right, gameState.input.axes.move_x, velocity);
 		vec3.addScaled(velocity, this.backwards, -gameState.input.axes.move_y, velocity);
-		vec3.addScaled(velocity, this.up, gameState.input.axes.move_z, velocity);
+
+		if (!look) {
+			vec3.addScaled(velocity, this.up, gameState.input.axes.move_z, velocity);
+		}
 
 		let moveSpeed = this.moveSpeed;
 		if (gameState.input.buttons.sprint > 0) moveSpeed *= 20;

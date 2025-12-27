@@ -125,7 +125,7 @@ export class Uniforms<UniformsObject extends UniformsDataStructure> {
 		});
 	}
 
-	private get device() { return this.renderer.getDevice(); }
+	private get device() { return this.renderer.device; }
 
 	public updateUniforms() {
 		for (const key in this.uniforms) {

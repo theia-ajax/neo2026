@@ -26,6 +26,5 @@ fn fragment_main(
 	@location(0) skyboxPosition: vec4f,
 ) -> @location(0) vec4f {
 	var skyboxVec = skyboxPosition.xyz - vec3(0.5);
-	skyboxVec.z *= -1;
 	return textureSample(skyboxTexture, skyboxSampler, skyboxVec);
 }

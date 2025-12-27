@@ -10,7 +10,7 @@ import { SampleBuffer } from '@/util';
 const MSAA_SAMPLE_COUNT: number = 4;
 
 export class Renderer {
-	private device: GPUDevice;
+	public device: GPUDevice;
 	private context: GPUCanvasContext;
 	private skyboxPipeline: GPURenderPipeline;
 	private terrainPipeline: GPURenderPipeline;
@@ -26,6 +26,7 @@ export class Renderer {
 	private timing: RenderTiming;
 	private resizeObserver: ResizeObserver;
 	private sampler: GPUSampler;
+	private skyboxSampler: GPUSampler;
 
 	constructor(canvas: HTMLCanvasElement, device: GPUDevice, gameState: GameState) {
 		console.log("Creating Renderer");
@@ -103,7 +104,7 @@ export class Renderer {
 			multisample: { count: MSAA_SAMPLE_COUNT },
 			primitive: {
 				topology: 'triangle-list',
-				cullMode: 'none',
+				cullMode: 'front',
 			},
 			depthStencil: {
 				depthWriteEnabled: false,
@@ -186,6 +187,11 @@ export class Renderer {
 			addressModeV: 'repeat',
 		});
 
+		this.skyboxSampler = device.createSampler({
+			minFilter: 'linear',
+			magFilter: 'linear',
+		});
+
 		this.uniformBuffer = device.createBuffer({
 			size: 4 * 4 * 4 * 3,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -208,7 +214,7 @@ export class Renderer {
 				},
 				{
 					binding: 1,
-					resource: this.sampler,
+					resource: this.skyboxSampler,
 				},
 				{
 					binding: 2,

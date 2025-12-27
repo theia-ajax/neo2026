@@ -48,7 +48,7 @@ export default class Material {
 		this.uniforms = new Uniforms("Material", renderer, createMaterialUniform(), bindGroupLayout);
 	}
 
-	public get device() { return this.renderer.getDevice(); }
+	public get device() { return this.renderer.device; }
 
 	public addTexture(
 		image: ImageBitmap,
