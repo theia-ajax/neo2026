@@ -2,6 +2,7 @@ const modeAlbedoTexture = 0;
 const modeNormalTexture = 1;
 const modeNormalMap = 2;
 const modeWeird = 3;
+const modeSolidColor = 4;
 
 struct Uniforms {
 	modelMatrix: mat4x4f,
@@ -33,7 +34,6 @@ struct VertexOutput {
 	@location(2) viewNormal : vec4f,
 	@location(3) viewTangent : vec4f,
 	@location(4) viewBitangent : vec4f,
-	@location(5) time: f32,
 }
 
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
@@ -54,7 +54,7 @@ fn vertex_main(
 
 	let time = uniforms.time.x;
 	let s = ((sin(time + input.position.x / 1) + cos(time + input.position.z / 1)) + 2) / 4;
-	vertPos.y += s;
+	// vertPos.y += s;
 
 	output.Position = modelViewProjectionMatrix * vertPos;
 	output.viewPosition = modelViewMatrix * vertPos;
@@ -62,7 +62,6 @@ fn vertex_main(
 	output.viewTangent = modelViewMatrix * vec4(input.tangent, 0);
 	output.viewBitangent = modelViewMatrix * vec4(input.bitangent, 0);
 	output.uv = input.uv / 1;
-	output.time = s;
 	return output;
 }
 
@@ -73,7 +72,7 @@ fn fragment_main(
 ) -> @location(0) vec4f {
 	var light : Lighting = Lighting(
 		vec3f(25, 50, 10),
-		modeWeird,
+		modeNormalMap,
 		10000.0,
 		1.0,
 		1.0
@@ -102,7 +101,10 @@ fn fragment_main(
 			let grey = vec3f(intensity, intensity, intensity);
 			let color1 = vec3f(0, 0.2, 1.0) * grey;
 			let color2 = vec3f(0.8, 1.5, 1.5) * grey;
-			return vec4f(mix(color1, color2, input.time * 0.5), 1.0);
+			return vec4f(mix(color1, color2, uniforms.time.x * 0.5), 1.0);
+		}
+		case modeSolidColor: {
+			return vec4f(0, 0, 1, 1);
 		}
 		default: {
 			let tanNormal = normalSample.xyz * 2 - 1;

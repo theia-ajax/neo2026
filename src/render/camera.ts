@@ -117,7 +117,7 @@ export class TankCameraController extends CameraController {
 		}
 
 		let moveSpeed = this.moveSpeed;
-		if (gameState.input.buttons.sprint > 0) moveSpeed *= 20;
+		if (gameState.input.buttons.sprint > 0) moveSpeed *= 4;
 
 		vec3.addScaled(position, velocity, moveSpeed * dt, this.position);
 

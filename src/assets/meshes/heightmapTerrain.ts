@@ -90,14 +90,16 @@ function setTriangle(mesh: Mesh, triangleId: number, i0: number, i1: number, i2:
 	mesh.indices[offset + 2] = i2;
 }
 
-function createTerrainMesh(vertexCount, indexCount, terrainWidth, terrainHeight): Mesh {
+function createTerrainMesh(vertexCount, indexCount, terrainWidth, terrainHeight, scale): Mesh {
 	return {
 		vertices: new Float32Array(vertexCount * kVertexSizeFloats),
 		indices: new Uint32Array(indexCount),
 		vertexStride: kVertexSizeBytes,
 		meta: {
-			terrainWidth: terrainWidth,
-			terrainHeight: terrainHeight,
+			terrainWidth: terrainWidth * scale[0] - scale[0],
+			terrainHeight: terrainHeight * scale[2] - scale[2],
+			nudgeX: 0,
+			nudgeZ: 0,
 		},
 	};
 }
@@ -131,7 +133,7 @@ function createDiffuseTerrainMesh(heightmapData: ImageData, options?: CreateHeig
 	const vertexCount = width * height;
 	const indexCount = (width - 1) * (height - 1) * 6;
 
-	let heightmapMesh: Mesh = createTerrainMesh(vertexCount, indexCount, width, height);
+	let heightmapMesh: Mesh = createTerrainMesh(vertexCount, indexCount, width, height, scale);
 
 	let vertexId = 0;
 	let triangleId = 0;
@@ -173,8 +175,8 @@ function createDiffuseTerrainMesh(heightmapData: ImageData, options?: CreateHeig
 			const tangent = vec3.normalize(vec3.sub(getPos(i0), getPos(i2)));
 			setTangent(i0, tangent);
 
-			pushTriangle(i0, i2, i3);
-			pushTriangle(i1, i0, i3);
+			pushTriangle(i0, i2, i1);
+			pushTriangle(i1, i2, i3);
 		}
 	}
 

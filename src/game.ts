@@ -81,12 +81,12 @@ export class Game {
 		this.device = device;
 		this.assets = assets;
 
-		this.physics = new Physics(RAPIER);
 
 		this.inputHandler = createInputHandler(window, canvas);
 
-		const FIXED_UPDATE_HERTZ = 120;
+		const FIXED_UPDATE_HERTZ = 60;
 		const FIXED_DELTA_SECONDS = 1 / FIXED_UPDATE_HERTZ;
+		this.physics = new Physics(RAPIER, { integration: { dt: FIXED_DELTA_SECONDS } });
 
 		this.gameState = new GameState();
 
@@ -101,12 +101,14 @@ export class Game {
 
 
 		this.gameState.terrain = new Terrain();
-		const heightmapData = getImageData(this.assets.getAsset('heightmap').image);
+		const physHeightmapData = getImageData(this.assets.getAsset('heightmap').image);
+		this.physics.createHeightmapCollider(physHeightmapData, vec3.create(0.5, 16, 0.5));
+		const visHeightmapData = getImageData(this.assets.getAsset('heightmap').image);
 		createTerrainMeshFromHeightmapAsync(
-			heightmapData,
+			visHeightmapData,
 			{
 				shading: 'diffuse',
-				scale: vec3.create(1, 32, 1),
+				scale: vec3.create(0.5, 16, 0.5),
 			},
 			(mesh: Mesh) => {
 				this.gameState.terrain.initFromHeightmapMesh(this.device, mesh);
@@ -144,7 +146,9 @@ export class Game {
 
 		this.gameState.camera = new Camera();
 		this.gameState.cameraController = new TankCameraController(this.gameState.camera);
-		this.gameState.camera.position = vec3.create(0, 30, 25);
+		this.gameState.camera.position = vec3.create(0, 16, 25);
+		// this.gameState.camera.position = vec3.create(100, 30, 200);
+		// this.gameState.camera.position = vec3.create(-120, 10, -100);
 
 		this.renderer = new Renderer(this.canvas, this.device, this.gameState);
 

@@ -12,6 +12,15 @@ export const GlobalAssetManifest: AssetManifest = {
 			}
 		},
 		{
+			name: "heightmap_phys",
+			type: "IMAGE",
+			url: new URL('textures/smallheightmap_64.png', import.meta.url),
+			importConfig: {
+				type: "IMAGE",
+				textureFormat: 'rgba8unorm',
+			}
+		},
+		{
 			name: "largeheightmap",
 			type: "IMAGE",
 			url: new URL('textures/height.png', import.meta.url),
