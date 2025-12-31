@@ -1,9 +1,8 @@
 
-export type AssetType = "IMAGE";
+export type AssetType = "image";
 
 
 type ImageAssetImportConfig = {
-	type: "IMAGE";
 	textureFormat?: GPUTextureFormat;
 	textureMipLevelCount?: GPUIntegerCoordinate;
 	textureSampleCount?: GPUSize32;
@@ -17,7 +16,7 @@ export interface AssetDescriptor {
 	name: string;
 	type: AssetType;
 	url: URL;
-	importConfig: AssetImportConfig;
+	importConfig?: AssetImportConfig;
 }
 
 export interface AssetManifest {
@@ -25,7 +24,7 @@ export interface AssetManifest {
 }
 
 type ImageAsset = {
-	type: "IMAGE";
+	type: "image";
 	image: ImageBitmap;
 	texture?: GPUTexture;
 }
@@ -52,11 +51,11 @@ interface AssetLoadCallback {
 function imageAssetCreateTexture(asset: ImageAsset, descriptor: AssetDescriptor, device: GPUDevice) {
 	asset.texture = device.createTexture({
 		size: [asset.image.width, asset.image.height],
-		format: descriptor.importConfig.textureFormat,
+		format: descriptor.importConfig?.textureFormat ?? 'rgba8unorm',
 		usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
-		mipLevelCount: descriptor.importConfig.textureMipLevelCount,
-		sampleCount: descriptor.importConfig.textureSampleCount,
-		dimension: descriptor.importConfig.textureDimension,
+		mipLevelCount: descriptor.importConfig?.textureMipLevelCount,
+		sampleCount: descriptor.importConfig?.textureSampleCount,
+		dimension: descriptor.importConfig?.textureDimension,
 	});
 	device.queue.copyExternalImageToTexture(
 		{ source: asset.image },
@@ -66,7 +65,7 @@ function imageAssetCreateTexture(asset: ImageAsset, descriptor: AssetDescriptor,
 
 async function loadImageAsset(descriptor: AssetDescriptor): Promise<ImageAsset> {
 	const asset: ImageAsset = {
-		type: "IMAGE",
+		type: "image",
 		image: null,
 	};
 
@@ -82,7 +81,7 @@ function onImageAssetLoaded(asset: Asset, descriptor: AssetDescriptor) {
 }
 
 const assetLoaders = {
-	IMAGE: { load: loadImageAsset, onLoad: onImageAssetLoaded },
+	image: { load: loadImageAsset, onLoad: onImageAssetLoaded },
 };
 
 export class AssetDatabase {
@@ -131,7 +130,7 @@ export class AssetDatabase {
 
 	// private async loadImage(descriptor: AssetDescriptor, onImageLoaded: AssetOnLoadCallback) {
 	// 	this.assets.set(descriptor.name, {
-	// 		type: "IMAGE",
+	// 		type: "image",
 	// 		image: null,
 	// 	});
 
