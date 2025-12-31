@@ -147,6 +147,7 @@ export class Game {
 		this.gameState.camera = new Camera();
 		this.gameState.cameraController = new TankCameraController(this.gameState.camera);
 		this.gameState.camera.position = vec3.create(0, 16, 25);
+		this.gameState.camera.position = vec3.create(0, 0, 5);
 		// this.gameState.camera.position = vec3.create(100, 30, 200);
 		// this.gameState.camera.position = vec3.create(-120, 10, -100);
 
@@ -196,8 +197,8 @@ export class Game {
 	}
 
 	private render(gameState: GameState) {
-		const { vertices, colors } = this.physics.debugRender;
-		this.renderer.setDebugLines(vertices, colors);
+		// const { vertices, colors } = this.physics.debugRender;
+		// this.renderer.setDebugLines(vertices, colors);
 
 		this.renderer.draw(gameState);
 	}

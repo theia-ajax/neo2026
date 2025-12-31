@@ -61,6 +61,10 @@ export class Physics {
 
 	get debugRender() { return this.world.debugRender(); }
 
+	getBodyModelMatrices() {
+		
+	}
+
 	createHeightField(imageData: ImageData) {
 		let heights = [];
 		for (let x = 0; x < imageData.width; x++) {

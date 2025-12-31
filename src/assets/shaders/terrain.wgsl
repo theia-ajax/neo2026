@@ -77,13 +77,6 @@ fn fragment_main(
 		1.0,
 		1.0
 	);
-
-	let tangentToView = mat3x3f(
-		input.viewTangent.xyz,
-		input.viewBitangent.xyz,
-		input.viewNormal.xyz,
-	);
-	let viewToTangent = transpose(tangentToView);
 	
 	var albedoSample = textureSample(diffuseMap, textureSampler, input.uv);
 	var normalSample = textureSample(normalMap, textureSampler, input.uv);
@@ -107,6 +100,13 @@ fn fragment_main(
 			return vec4f(0, 0, 1, 1);
 		}
 		default: {
+			let tangentToView = mat3x3f(
+				input.viewTangent.xyz,
+				input.viewBitangent.xyz,
+				input.viewNormal.xyz,
+			);
+			let viewToTangent = transpose(tangentToView);
+			
 			let tanNormal = normalSample.xyz * 2 - 1;
 			let viewNormal = normalize(tangentToView * tanNormal);
 			let viewFragToLight = light.viewLightPosition - input.viewPosition.xyz;

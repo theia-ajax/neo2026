@@ -1,10 +1,13 @@
 import { mat4, vec3, type Mat4 } from 'wgpu-matrix';
 import terrainWGSL from '@shaders/terrain.wgsl?raw'
 import skyboxWGSL from '@shaders/skybox.wgsl?raw'
+import instancedTexturedLitWGSL from '@shaders/instancedTexturedLit.wgsl?raw'
 import debugLinesWGSL from '@shaders/debugLines.wgsl?raw'
 import { getDevicePixelContentBoxSize } from '@/render/rendererUtils';
 import { GameState } from '@/gamestate';
 import { SampleBuffer } from '@/util';
+import { cubePositionNormalUv } from '@/assets/meshes/cube'
+import { createMeshRenderable, type MeshRenderable } from './mesh';
 
 // webgpu only supports 1 or 4 and 1 fails with the following error on chrome/windows:
 // Cannot set [TextureView of Texture "D3DImageBacking_D3DSharedImage_WebGPUSwapBufferProvider_Pid:11684"] as a resolve target when the color attachment [TextureView of Texture "Render Target Texture"] has a sample count of 1.
@@ -35,6 +38,11 @@ export class Renderer {
 	private debugLinesColorsVertexBuffer: GPUBuffer;
 	private debugLinesIndexBuffer: GPUBuffer;
 	private debugLinesVertexCount: number;
+	private objectsPipeline: GPURenderPipeline;
+	private objectsUniformsBuffer: GPUBuffer;
+	private objectsInstanceBuffer: GPUBuffer;
+	private objectsGlobalsBindGroup: GPUBindGroup;
+	private cubeRenderMesh: MeshRenderable;
 
 	setDebugLines(positions: Float32Array, colors: Float32Array) {
 		this.debugLinesVertexCount = positions.length / 3;
@@ -285,6 +293,89 @@ export class Renderer {
 			}
 		});
 
+		const instancedTexturedLitShader = this.device.createShaderModule({
+			label: 'instancedTexturedLit',
+			code: instancedTexturedLitWGSL,
+		});
+		this.objectsPipeline = this.device.createRenderPipeline({
+			label: 'objects',
+			layout: 'auto',
+			vertex: {
+				module: instancedTexturedLitShader,
+				entryPoint: "vertex_main",
+				buffers: [
+					{
+						arrayStride: 8 * 4,
+						attributes: [
+							{
+								shaderLocation: 0,
+								offset: 0,
+								format: 'float32x3',
+							},
+							{
+								shaderLocation: 1,
+								offset: 12,
+								format: 'float32x3',
+							},
+							{
+								shaderLocation: 2,
+								offset: 24,
+								format: 'float32x2',
+							},
+						]
+					},
+					{
+						arrayStride: 16 * 4,
+						stepMode: 'instance',
+						attributes: [
+							{
+								shaderLocation: 3,
+								offset: 0,
+								format: 'float32x4',
+							},
+							{
+								shaderLocation: 4,
+								offset: 4 * 4,
+								format: 'float32x4',
+							},
+							{
+								shaderLocation: 5,
+								offset: 8 * 4,
+								format: 'float32x4',
+							},
+							{
+								shaderLocation: 6,
+								offset: 12 * 4,
+								format: 'float32x4',
+							},
+						]
+					}
+				]
+			},
+			fragment: {
+				module: instancedTexturedLitShader,
+				entryPoint: "fragment_main",
+				targets: [
+					{
+						format: this.presentationFormat,
+					}
+				]
+			},
+			multisample: {
+				count: MSAA_SAMPLE_COUNT,
+			},
+			primitive: {
+				topology: 'triangle-list',
+				cullMode: 'none',
+			},
+			depthStencil: {
+				depthWriteEnabled: true,
+				depthCompare: 'less',
+				format: 'depth24plus',
+			}
+		});
+		this.cubeRenderMesh = createMeshRenderable(this.device, cubePositionNormalUv);
+
 		this.onCanvasResize(canvas);
 
 		this.sampler = device.createSampler({
@@ -355,6 +446,31 @@ export class Renderer {
 			],
 		});
 
+		this.objectsUniformsBuffer = this.device.createBuffer({
+			size: 144,
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+		});
+
+		const MAX_OBJECTS = 32;
+
+		this.objectsInstanceBuffer = this.device.createBuffer({
+			size: 16 * 4 * MAX_OBJECTS,
+			usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+		});
+
+		this.objectsGlobalsBindGroup = this.device.createBindGroup({
+			label: 'objectsGlobals',
+			layout: this.objectsPipeline.getBindGroupLayout(0),
+			entries: [
+				{
+					binding: 0,
+					resource: {
+						buffer: this.objectsUniformsBuffer,
+					}
+				}
+			]
+		})
+
 		const { maxTextureDimension2D } = device.limits;
 		this.resizeObserver = new ResizeObserver(([entry]) => {
 			const { width, height } = getDevicePixelContentBoxSize(entry);
@@ -423,6 +539,27 @@ export class Renderer {
 			projection.byteOffset,
 			projection.byteLength);
 
+		{
+			this.device.queue.writeBuffer(
+				this.objectsUniformsBuffer,
+				0,
+				view.buffer,
+				view.byteOffset,
+				view.byteLength);
+			this.device.queue.writeBuffer(
+				this.objectsUniformsBuffer,
+				16 * 4,
+				projection.buffer,
+				projection.byteOffset,
+				projection.byteLength);
+			this.device.queue.writeBuffer(
+				this.objectsUniformsBuffer,
+				32 * 4,
+				timeArray.buffer,
+				timeArray.byteOffset,
+				timeArray.byteLength);
+		}
+
 		const commandEncoder = this.device.createCommandEncoder();
 
 		const renderTargetView = this.renderTargetTexture.createView();
@@ -467,6 +604,15 @@ export class Renderer {
 			renderPass.setIndexBuffer(this.debugLinesIndexBuffer, "uint32");
 			renderPass.drawIndexed(this.debugLinesVertexCount);
 			// renderPass.draw(this.debugLinesVertexCount);
+		}
+
+		{
+			renderPass.setPipeline(this.objectsPipeline);
+			renderPass.setBindGroup(0, this.objectsGlobalsBindGroup);
+			renderPass.setVertexBuffer(0, this.cubeRenderMesh.vertexBuffer);
+			renderPass.setVertexBuffer(1, this.objectsInstanceBuffer);
+			renderPass.setIndexBuffer(this.cubeRenderMesh.indexBuffer, 'uint16');
+			renderPass.drawIndexed(this.cubeRenderMesh.indexCount, 1);
 		}
 
 		if (gameState.terrain.renderMesh) {

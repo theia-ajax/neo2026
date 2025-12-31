@@ -222,7 +222,7 @@ function createFlatTerrainMesh(heightmapData: ImageData, options?: CreateHeightm
 	const vertexCount = (width - 1) * (height - 1) * 6;
 	const indexCount = vertexCount;
 
-	let heightmapMesh: Mesh = createTerrainMesh(vertexCount, indexCount, width, height);
+	let heightmapMesh: Mesh = createTerrainMesh(vertexCount, indexCount, width, height, scale);
 
 	let vertexId = 0;
 	let triangleId = 0;
