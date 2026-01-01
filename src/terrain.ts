@@ -12,24 +12,19 @@ export class Terrain {
 	length: number;
 
 	constructor() {
-		this.position = vec3.create(-this.width / 2, -5, -this.length / 2);
+		this.position = vec3.create(0, 0, 0);
 		this.rotation = 0;
-		const s = 1 / 4;
-		this.scale = vec3.create(s, 1, s);
+		this.scale = vec3.create(1, 1, 1);
 	}
 
 	initFromHeightmapMesh(device: GPUDevice, mesh: Mesh) {
 		this.mesh = mesh;
-		// this.mesh = createFlatShadedHeightmapMesh(image, 40);
 		this.renderMesh = createMeshRenderable(device, this.mesh);
 
 		this.width = mesh.meta?.terrainWidth;
 		this.length = mesh.meta?.terrainHeight;
 
 		this.position = vec3.create(-this.width / 2 + mesh.meta?.nudgeX, 0, -this.length / 2 + mesh.meta?.nudgeZ);
-		this.rotation = 0;
-		const s = 1;
-		this.scale = vec3.create(s, 1, s);
 	}
 
 	sampleHeight(x: number, z: number): number {
@@ -52,8 +47,7 @@ export class Terrain {
 		return 0;
 	}
 
-	getModelMatrix(gameState: GameState): Mat4 {
-
+	getModelMatrix(): Mat4 {
 		let model =
 			mat4.translate(mat4.
 				rotate(

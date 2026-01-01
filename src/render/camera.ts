@@ -1,8 +1,12 @@
+import * as debug from "@/debug/debug"
+
 import type { GameTime } from '@/game';
 import type { GameState } from '@/gamestate';
 import { type Mat4, type Vec3, type Vec4, mat4, vec3 } from 'wgpu-matrix';
 import { Mathx } from '@/core/mathx';
 import { utils } from 'wgpu-matrix';
+
+export type CameraControllerType = 'tank' | 'orbit';
 
 export interface ICamera {
 	matrix: Mat4,
@@ -55,6 +59,7 @@ export interface ICameraController {
 
 export class CameraController implements ICameraController, ICamera {
 	activeCamera: Camera;
+	lastMatrix: Mat4;
 
 	get camera() { return this.activeCamera; }
 	set camera(activeCamera: Camera) { this.activeCamera = activeCamera; }
@@ -72,8 +77,21 @@ export class CameraController implements ICameraController, ICamera {
 	get position() { return this.camera?.position; }
 	set position(v: Vec3) { if (this.camera) { this.camera.position = v; } }
 
-	constructor(camera?: Camera) { this.activeCamera = camera; }
-	update(gameState: GameState, dt: number) { }
+	constructor(camera?: Camera) {
+		this.activeCamera = camera;
+		this.lastMatrix = mat4.identity();
+	}
+
+	update(gameState: GameState, dt: number) {
+	}
+
+	saveState() {
+		mat4.copy(this.matrix, this.lastMatrix);
+	}
+
+	restoreState() {
+		mat4.copy(this.lastMatrix, this.matrix);
+	}
 }
 
 export class TankCameraController extends CameraController {
@@ -92,6 +110,8 @@ export class TankCameraController extends CameraController {
 		if (this.camera == undefined) {
 			return;
 		}
+
+		this.saveState();
 
 		const look: boolean = gameState.input.buttons.look > 0;
 
@@ -122,5 +142,62 @@ export class TankCameraController extends CameraController {
 		vec3.addScaled(position, velocity, moveSpeed * dt, this.position);
 
 		this.activeCamera.view = mat4.invert(this.activeCamera.matrix);
+	}
+}
+
+export class AutoOrbitCameraController extends CameraController {
+	target: Vec3 = vec3.create(0, 0, 0);
+	azimuth: number = 0;
+	zenith: number = 45;
+	distance: number = 50;
+	orbitRate: number = 15;
+
+	constructor(camera?: Camera) {
+		super(camera)
+	}
+
+	update(gameState: GameState, dt: number) {
+		if (this.camera == undefined) {
+			return;
+		}
+
+		this.saveState();
+
+		this.azimuth += this.orbitRate * dt;
+
+		let theta = -this.azimuth * Mathx.deg2Rad;
+		let phi = this.zenith * Mathx.deg2Rad;
+
+		const ρ = this.distance;
+		const sin_φ = Math.sin(phi);
+		const cos_φ = Math.cos(phi);
+		const sin_θ = Math.sin(theta);
+		const cos_θ = Math.cos(theta);
+
+		debug.log(`Azimuth: ${this.azimuth.toFixed(1)} Zenith: ${this.zenith.toFixed(1)}`);
+		// debug.log(`ρ=${ρ}`);
+		// debug.log(`θ=${theta.toFixed(3)} sin(θ)=${sin_θ.toFixed(3)} cos(θ)=${cos_θ.toFixed(3)}`);
+		// debug.log(`φ=${phi.toFixed(3)} sin(φ)=${sin_φ.toFixed(3)} cos(φ)=${cos_φ.toFixed(3)}`);
+
+		let eye = vec3.create(
+			cos_θ * cos_φ * this.distance,
+			sin_φ * this.distance,
+			sin_θ * cos_φ * this.distance
+		);
+		const prettyVec3 = (v) => {
+			return `${v[0].toFixed(3)}, ${v[1].toFixed(3)}, ${v[2].toFixed(3)}`
+		}
+		debug.log(`Eye: ${prettyVec3(eye)}`);
+
+		vec3.add(this.target, eye, this.position);
+		vec3.normalize(vec3.sub(eye, this.target), this.backwards);
+
+		vec3.negate(vec3.create(-sin_θ, 0, cos_θ), this.right);
+
+		// vec3.cross(basisVector, this.backwards, this.right);
+		vec3.cross(this.backwards, this.right, this.up);
+
+		// this.activeCamera.matrix = mat4.translate(mat4.lookAt(eye, this.target, up), eye);
+		this.activeCamera.view = mat4.inverse(this.activeCamera.matrix);
 	}
 }

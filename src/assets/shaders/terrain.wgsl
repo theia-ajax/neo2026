@@ -12,7 +12,7 @@ struct Uniforms {
 }
 
 struct Lighting {
-	viewLightPosition: vec3f,
+	viewLightPosition: vec4f,
 	mode: u32,
 	lightIntensity: f32,
 	depthScale: f32,
@@ -34,6 +34,7 @@ struct VertexOutput {
 	@location(2) viewNormal : vec4f,
 	@location(3) viewTangent : vec4f,
 	@location(4) viewBitangent : vec4f,
+	@location(5) vertPosition: vec4f,
 }
 
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
@@ -52,16 +53,18 @@ fn vertex_main(
 
 	var vertPos = vec4f(input.position, 1.0);
 
-	let time = uniforms.time.x;
-	let s = ((sin(time + input.position.x / 1) + cos(time + input.position.z / 1)) + 2) / 4;
+	// let time = uniforms.time.x;
+	// let wp = vec2f(input.position.x, input.position.z) * 0.25;
+	// let s = ((sin(time + wp.x) + cos(time + wp.y)) + 1) / 2 * (1 - (input.position.y / 16)) * 2;
 	// vertPos.y += s;
 
 	output.Position = modelViewProjectionMatrix * vertPos;
-	output.viewPosition = modelViewMatrix * vertPos;
-	output.viewNormal = modelViewMatrix * vec4(input.normal, 0);
-	output.viewTangent = modelViewMatrix * vec4(input.tangent, 0);
-	output.viewBitangent = modelViewMatrix * vec4(input.bitangent, 0);
-	output.uv = input.uv / 1;
+	output.viewPosition = uniforms.viewMatrix * vertPos;
+	output.viewNormal = normalize(uniforms.viewMatrix * vec4(input.normal, 0));
+	output.viewTangent = uniforms.viewMatrix * vec4(input.tangent, 0);
+	output.viewBitangent = uniforms.viewMatrix * vec4(input.bitangent, 0);
+	output.uv = input.uv;
+	output.vertPosition = vertPos;
 	return output;
 }
 
@@ -71,9 +74,9 @@ fn fragment_main(
 	input: VertexOutput
 ) -> @location(0) vec4f {
 	var light : Lighting = Lighting(
-		vec3f(25, 50, 10),
-		modeNormalMap,
-		10000.0,
+		vec4f(0, 1, 0, 0),
+		modeWeird,
+		1.0,
 		1.0,
 		1.0
 	);
@@ -89,12 +92,19 @@ fn fragment_main(
 			return normalSample;
 		}
 		case modeWeird: {
-			let diffuse = albedoSample.rgb;
-			let intensity = (diffuse.r + diffuse.g + diffuse.b);
+			let intensity = (albedoSample.r + albedoSample.g + albedoSample.b) / 3;
 			let grey = vec3f(intensity, intensity, intensity);
-			let color1 = vec3f(0, 0.2, 1.0) * grey;
-			let color2 = vec3f(0.8, 1.5, 1.5) * grey;
-			return vec4f(mix(color1, color2, uniforms.time.x * 0.5), 1.0);
+			let color1 = vec3f(0.5, 0, 1) * grey;
+			let color2 = vec3f(1, 0, 0.5) * grey;
+			let scalar = input.vertPosition.y / 16;
+			let mixed = mix(color1, color2, scalar);
+			let baseColor = mixed;
+			// return vec4f(mixed, 1.0);
+
+			let lightDir = normalize(normalize(light.viewLightPosition) - input.viewPosition);
+			let diffuseLight = light.lightIntensity * max(dot(lightDir, input.viewNormal), 0);
+			let diffuse = baseColor.rgb * diffuseLight;
+			return vec4f(diffuse, 1.0);
 		}
 		case modeSolidColor: {
 			return vec4f(0, 0, 1, 1);
@@ -106,10 +116,10 @@ fn fragment_main(
 				input.viewNormal.xyz,
 			);
 			let viewToTangent = transpose(tangentToView);
-			
+
 			let tanNormal = normalSample.xyz * 2 - 1;
 			let viewNormal = normalize(tangentToView * tanNormal);
-			let viewFragToLight = light.viewLightPosition - input.viewPosition.xyz;
+			let viewFragToLight = light.viewLightPosition.xyz - input.viewPosition.xyz;
 			let lightSqrDist = dot(viewFragToLight, viewFragToLight);
 			let viewLightDir = viewFragToLight * inverseSqrt(lightSqrDist);
 			let diffuseLight = light.lightIntensity * max(dot(viewLightDir, viewNormal.xyz), 0) / lightSqrDist;

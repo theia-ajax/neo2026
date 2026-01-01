@@ -8,13 +8,17 @@ import { createTextureFromImage } from "@/render/texture"
 import { vec3 } from "wgpu-matrix"
 import { Terrain } from '@/terrain'
 import { createInputHandler, type InputHandler } from "@/input";
-import { Camera, TankCameraController } from "@/render/camera"
+import { Camera, TankCameraController, AutoOrbitCameraController } from "@/render/camera"
 import getImageData from "./assets/imageData"
 import { createTerrainMeshFromHeightmapAsync } from "@/assets/meshes/heightmapTerrainAsync"
 import { createMeshRenderable, type Mesh } from "@/render/mesh"
 import { cubePositionOnly } from "@/assets/meshes/cube"
 import { Physics } from "@/physics"
 type RAPIER_API = typeof import("@dimforge/rapier3d");
+
+const FIXED_UPDATE_HERTZ = 60;
+const FIXED_DELTA_SECONDS = 1 / FIXED_UPDATE_HERTZ;
+
 
 export interface GameTime {
 	deltaSec: number;
@@ -76,6 +80,13 @@ export class Game {
 	private inputHandler: InputHandler;
 	private physics: Physics;
 
+	reset() {
+		this.physics.resetWorld();
+		const physHeightmapData = getImageData(this.assets.getAsset('heightmap').image);
+		this.physics.createHeightmapCollider(physHeightmapData, vec3.create(0.25, 16, 0.25));
+	}
+
+
 	constructor(canvas: HTMLCanvasElement, device: GPUDevice, assets: AssetDatabase, RAPIER: RAPIER_API) {
 		this.canvas = canvas;
 		this.device = device;
@@ -84,8 +95,7 @@ export class Game {
 
 		this.inputHandler = createInputHandler(window, canvas);
 
-		const FIXED_UPDATE_HERTZ = 60;
-		const FIXED_DELTA_SECONDS = 1 / FIXED_UPDATE_HERTZ;
+
 		this.physics = new Physics(RAPIER, { integration: { dt: FIXED_DELTA_SECONDS } });
 
 		this.gameState = new GameState();
@@ -98,17 +108,17 @@ export class Game {
 			elapsedSec: 0,
 			timeScale: 1.0,
 		}
-
+		this.gameState.input = this.inputHandler();
 
 		this.gameState.terrain = new Terrain();
 		const physHeightmapData = getImageData(this.assets.getAsset('heightmap').image);
-		this.physics.createHeightmapCollider(physHeightmapData, vec3.create(0.5, 16, 0.5));
+		this.physics.createHeightmapCollider(physHeightmapData, vec3.create(0.25, 16, 0.25));
 		const visHeightmapData = getImageData(this.assets.getAsset('heightmap').image);
 		createTerrainMeshFromHeightmapAsync(
 			visHeightmapData,
 			{
 				shading: 'diffuse',
-				scale: vec3.create(0.5, 16, 0.5),
+				scale: vec3.create(0.25, 16, 0.25),
 			},
 			(mesh: Mesh) => {
 				this.gameState.terrain.initFromHeightmapMesh(this.device, mesh);
@@ -145,25 +155,80 @@ export class Game {
 		this.gameState.skyboxTexture = skyboxTexture;
 
 		this.gameState.camera = new Camera();
-		this.gameState.cameraController = new TankCameraController(this.gameState.camera);
-		this.gameState.camera.position = vec3.create(0, 16, 25);
-		this.gameState.camera.position = vec3.create(0, 0, 5);
-		// this.gameState.camera.position = vec3.create(100, 30, 200);
+
+
+		this.gameState.orbitCameraController = new AutoOrbitCameraController(this.gameState.camera);
+		{
+			let cc = this.gameState.orbitCameraController;
+			cc.target = vec3.create(0, 8, 0);
+			cc.orbitRate = 7.5;
+			cc.distance = 30;
+			cc.zenith = 25;
+		}
+
+		this.gameState.camera.position = vec3.create(0, 16, 15);
+		this.gameState.tankCameraController = new TankCameraController(this.gameState.camera);
+		this.gameState.tankCameraController.update(this.gameState, 0);
+
+		this.gameState.cameraController = this.gameState.tankCameraController;
+		this.gameState.cameraController = this.gameState.orbitCameraController;
+		// // this.gameState.camera.position = vec3.create(0, 0, 5);
+		// this.gameState.camera.position = vec3.create(0, 16, 20);
 		// this.gameState.camera.position = vec3.create(-120, 10, -100);
+
+		const settings = {
+			showDebug: debug.getVisible(),
+			cameraType: 'orbit',
+			tankCameraMoveSpeed: this.gameState.tankCameraController.moveSpeed,
+			tankCameraTurnRate: this.gameState.tankCameraController.turnRateDegrees,
+			orbitCameraHeight: this.gameState.orbitCameraController.target[1],
+			orbitCameraDistance: this.gameState.orbitCameraController.distance,
+			orbitCameraZenith: this.gameState.orbitCameraController.zenith,
+			orbitCameraOrbitRate: this.gameState.orbitCameraController.orbitRate,
+			reset: () => { this.reset(); }
+		};
 
 		this.renderer = new Renderer(this.canvas, this.device, this.gameState);
 
 		this.cpuSampler = new SampleBuffer(60);
 		this.fpsSampler = new SampleBuffer(60);
 
-		const settings = {
-			showDebug: debug.getVisible(),
-		};
-
 		const gui = new GUI();
+		gui.close();
 		gui.add(settings, 'showDebug').onChange(() => {
 			debug.setVisible(settings.showDebug);
 		});
+		gui.add(settings, 'cameraType', { Orbit: 'orbit', Tank: 'tank' }).onChange(() => {
+			console.log(settings.cameraType);
+			this.gameState.cameraController = this.gameState.cameraControllers[settings.cameraType];
+			this.gameState.cameraController.restoreState();
+		});
+		const tankCameraFolder = gui.addFolder('Tank Camera');
+		{
+			tankCameraFolder.add(settings, 'tankCameraMoveSpeed', 0, 20).name('Move Speed').onChange(() => {
+				this.gameState.tankCameraController.moveSpeed = settings.tankCameraMoveSpeed;
+			});
+			tankCameraFolder.add(settings, 'tankCameraTurnRate', 1, 360).name('Turn Rate').onChange(() => {
+				this.gameState.tankCameraController.turnRateDegrees = settings.tankCameraTurnRate;
+			});
+		}
+		const orbitCameraFolder = gui.addFolder('Orbit Camera');
+		{
+			orbitCameraFolder.add(settings, 'orbitCameraHeight', 0, 20).name('Height').onChange(() => {
+				this.gameState.orbitCameraController.target[1] = settings.orbitCameraHeight
+			});
+			orbitCameraFolder.add(settings, 'orbitCameraDistance', 0.1, 64).name('Distance').onChange(() => {
+				(this.gameState.cameraController as AutoOrbitCameraController).distance = settings.orbitCameraDistance;
+			});
+			orbitCameraFolder.add(settings, 'orbitCameraZenith', -90, 90).name('Zenith').onChange(() => {
+				this.gameState.orbitCameraController.zenith = settings.orbitCameraZenith;
+			});
+			orbitCameraFolder.add(settings, 'orbitCameraOrbitRate', -90, 90).name('Orbit Rate').onChange(() => {
+				this.gameState.orbitCameraController.orbitRate = settings.orbitCameraOrbitRate;
+			});
+		}
+		gui.add(settings, 'reset').name('Reset World');
+
 
 		this.gameCallbacks = [
 			new GameCallbackDriver("Pre Frame", (gs: GameState) => { this.preFrame(gs); }),
@@ -188,10 +253,10 @@ export class Game {
 	}
 
 	private update(gameState: GameState) {
+		gameState.cameraController?.update(gameState, gameState.time.deltaSec);
 	}
 
 	private fixedUpdate(gameState: GameState) {
-		gameState.cameraController?.update(gameState, gameState.time.fixedDeltaSec);
 		this.physics.step();
 		// gameState.terrain.rotation = -gameState.time.elapsedSec * Math.PI * 2 / 256;
 	}
@@ -199,6 +264,8 @@ export class Game {
 	private render(gameState: GameState) {
 		// const { vertices, colors } = this.physics.debugRender;
 		// this.renderer.setDebugLines(vertices, colors);
+
+		this.physics.renderColliders(this.renderer);
 
 		this.renderer.draw(gameState);
 	}
