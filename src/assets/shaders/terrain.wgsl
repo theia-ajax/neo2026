@@ -75,7 +75,7 @@ fn fragment_main(
 ) -> @location(0) vec4f {
 	var light : Lighting = Lighting(
 		vec4f(0, 1, 0, 0),
-		modeWeird,
+		modeNormalMap,
 		1.0,
 		1.0,
 		1.0

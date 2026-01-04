@@ -5,7 +5,6 @@ import { Renderer } from "@/render/renderer"
 import { SampleBuffer } from "@/util"
 import { AssetDatabase } from "@assets/assetDatabase"
 import { createTextureFromImage } from "@/render/texture"
-import { vec3 } from "wgpu-matrix"
 import { Terrain } from '@/terrain'
 import { createInputHandler, type InputHandler } from "@/input";
 import { Camera, TankCameraController, AutoOrbitCameraController } from "@/render/camera"
@@ -14,6 +13,7 @@ import { createTerrainMeshFromHeightmapAsync } from "@/assets/meshes/heightmapTe
 import { createMeshRenderable, type Mesh } from "@/render/mesh"
 import { cubePositionOnly } from "@/assets/meshes/cube"
 import { Physics } from "@/physics"
+import { vec3, vec4, mat3, mat4, type Vec3, type Vec4, type Mat3, type Mat4 } from 'wgpu-matrix'
 type RAPIER_API = typeof import("@dimforge/rapier3d");
 
 const FIXED_UPDATE_HERTZ = 60;
@@ -27,6 +27,7 @@ export interface GameTime {
 	fixedDeltaSecNoScale: number;
 	elapsedSec: number;
 	timeScale: number;
+	frame: number;
 }
 
 interface GameCallback {
@@ -107,6 +108,7 @@ export class Game {
 			fixedDeltaSecNoScale: FIXED_DELTA_SECONDS,
 			elapsedSec: 0,
 			timeScale: 1.0,
+			frame: 0,
 		}
 		this.gameState.input = this.inputHandler();
 
@@ -166,12 +168,12 @@ export class Game {
 			cc.zenith = 25;
 		}
 
-		this.gameState.camera.position = vec3.create(0, 16, 15);
+		this.gameState.camera.position = vec3.create(0, 24, 15);
 		this.gameState.tankCameraController = new TankCameraController(this.gameState.camera);
 		this.gameState.tankCameraController.update(this.gameState, 0);
 
 		this.gameState.cameraController = this.gameState.tankCameraController;
-		this.gameState.cameraController = this.gameState.orbitCameraController;
+		// this.gameState.cameraController = this.gameState.orbitCameraController;
 		// // this.gameState.camera.position = vec3.create(0, 0, 5);
 		// this.gameState.camera.position = vec3.create(0, 16, 20);
 		// this.gameState.camera.position = vec3.create(-120, 10, -100);
@@ -265,7 +267,25 @@ export class Game {
 		// const { vertices, colors } = this.physics.debugRender;
 		// this.renderer.setDebugLines(vertices, colors);
 
+
 		this.physics.renderColliders(this.renderer);
+
+		// {
+		// 	const a = gameState.time.elapsedSec;
+		// 	const model =
+		// 		mat4.scale(
+		// 			mat4.rotateY(
+		// 				mat4.translate(mat4.identity(), vec3.create(0, 20, 5)),
+		// 				a),
+		// 			vec3.create(1, 1, 1));
+		// 	const normal = mat3.transpose(mat3.inverse(mat3.fromMat4(model)));
+		// 	this.renderer.setObjectInstances([{
+		// 		modelMatrix: model,
+		// 		normalMatrix: normal
+		// 	}]);
+		// }
+
+		// if (gameState.time.frame == 0)
 
 		this.renderer.draw(gameState);
 	}
@@ -332,5 +352,7 @@ export class Game {
 		debug.log(`Camera Pos: ${formatPos(this.gameState.camera.position)}`);
 
 		debug.flush();
+
+		this.gameState.time.frame++;
 	}
 }

@@ -1,4 +1,6 @@
-import { mat3, mat4, vec3, type Mat4, type Mat3 } from 'wgpu-matrix';
+import * as debug from "@/debug/debug"
+
+import { mat3, mat4, vec3, vec4, type Vec4, type Mat4, type Mat3 } from 'wgpu-matrix';
 import terrainWGSL from '@shaders/terrain.wgsl?raw'
 import skyboxWGSL from '@shaders/skybox.wgsl?raw'
 import instancedTexturedLitWGSL from '@shaders/instancedTexturedLit.wgsl?raw'
@@ -9,6 +11,7 @@ import { SampleBuffer } from '@/util';
 import { cubePositionNormalUv } from '@/assets/meshes/cube'
 import { createMeshRenderable, type MeshRenderable } from './mesh';
 import { Mathx } from '@/core/mathx';
+import { createSphereMesh } from "@/assets/meshes/sphere";
 
 // webgpu only supports 1 or 4 and 1 fails with the following error on chrome/windows:
 // Cannot set [TextureView of Texture "D3DImageBacking_D3DSharedImage_WebGPUSwapBufferProvider_Pid:11684"] as a resolve target when the color attachment [TextureView of Texture "Render Target Texture"] has a sample count of 1.
@@ -19,8 +22,22 @@ interface ObjectInstance {
 	normalMatrix: Mat3,
 }
 
-const ObjectInstanceFloat32Size = (1 * 4 * 4) + (1 * 3 * 3);
+interface LightDescriptor {
+	position: Vec4,
+	color: Vec4,
+	scalars: Vec4,
+};
+
+interface LightingDescriptor {
+	lights: Array<LightDescriptor>,
+}
+
+const ObjectInstanceFloat32Size = (1 * 4 * 4) + (1 * 4 * 3);
 const ObjectInstanceByteSize = ObjectInstanceFloat32Size * 4;
+
+const lightSize = (4 + 4 + 4) * 4;
+const maxLights = 2;
+const lightingUniformSize = lightSize * maxLights;
 
 const MAX_OBJECTS = 4096;
 
@@ -54,7 +71,10 @@ export class Renderer {
 	private objectsInstanceBuffer: GPUBuffer;
 	private objectsGlobalsBindGroup: GPUBindGroup;
 	private objectInstanceCount: number;
+	private lightingUniformBuffer: GPUBuffer;
+	private lightingBindGroup: GPUBindGroup;
 	private cubeRenderMesh: MeshRenderable;
+	private lightingDesc: LightingDescriptor;
 
 	setDebugLines(positions: Float32Array, colors: Float32Array) {
 		this.debugLinesVertexCount = positions.length / 3;
@@ -338,7 +358,7 @@ export class Renderer {
 						]
 					},
 					{
-						arrayStride: 16 * 4 + 9 * 4,
+						arrayStride: 16 * 4 + 12 * 4,
 						stepMode: 'instance',
 						attributes: [
 							{
@@ -364,17 +384,17 @@ export class Renderer {
 							{
 								shaderLocation: 7,
 								offset: 16 * 4,
-								format: 'float32x3',
+								format: 'float32x4',
 							},
 							{
 								shaderLocation: 8,
-								offset: 19 * 4,
-								format: 'float32x3',
+								offset: 20 * 4,
+								format: 'float32x4',
 							},
 							{
 								shaderLocation: 9,
-								offset: 22 * 4,
-								format: 'float32x3',
+								offset: 24 * 4,
+								format: 'float32x4',
 							},
 						]
 					}
@@ -402,7 +422,9 @@ export class Renderer {
 				format: 'depth24plus',
 			}
 		});
-		this.cubeRenderMesh = createMeshRenderable(this.device, cubePositionNormalUv);
+
+		const sphereMesh = createSphereMesh(1.0);
+		this.cubeRenderMesh = createMeshRenderable(this.device, sphereMesh);
 
 		this.onCanvasResize(canvas);
 
@@ -474,17 +496,56 @@ export class Renderer {
 			],
 		});
 
+		this.lightingDesc = {
+			lights: [
+				{
+					position: vec4.create(1, -1, 0.5, 0.0),
+					color: vec4.create(1, 1, 1, 1),
+					scalars: vec4.create(1, 0.1, 0, 0),
+				},
+				{
+					position: vec4.create(-5, 14, 0, 1.0),
+					color: vec4.create(0, 0, 1, 1),
+					scalars: vec4.create(0, 0, 1, 0),
+				},
+			]
+		}
+
+
+
+
+		this.lightingUniformBuffer = this.device.createBuffer({
+			size: lightingUniformSize,
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+		});
+
+		this.setLightingUniformBuffer(this.lightingDesc);
+
+		this.lightingBindGroup = this.device.createBindGroup({
+			label: 'lighting',
+			layout: this.objectsPipeline.getBindGroupLayout(1),
+			entries: [
+				{
+					binding: 0,
+					resource: {
+						buffer: this.lightingUniformBuffer,
+					}
+				}
+			]
+		});
+
 		this.objectsUniformsBuffer = this.device.createBuffer({
-			size: 4 * 4 * 4 * 3 + 4 * 4,
+			size: (((4 * 4) * 2) + (4 * 2)) * 4,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
 
 
 		this.objectsInstanceBuffer = this.device.createBuffer({
-			size: 16 * 4 * MAX_OBJECTS,
+			size: ((16 * 4) + (12 * 4)) * MAX_OBJECTS,
 			usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
 		});
 
+		console.log(this.objectsPipeline.getBindGroupLayout(0));
 		this.objectsGlobalsBindGroup = this.device.createBindGroup({
 			label: 'objectsGlobals',
 			layout: this.objectsPipeline.getBindGroupLayout(0),
@@ -512,11 +573,9 @@ export class Renderer {
 		const aspect = this.context.canvas.width / this.context.canvas.height;
 		const projection = mat4.perspective(90 * Mathx.deg2Rad, aspect, 0.01, 1000.0);
 		const view = gameState.camera.view;
-		const normalMatrix = mat3.fromMat4(mat4.transpose(gameState.camera.matrix));
 
 		const viewProjection = mat4.multiply(projection, view);
 		const skyboxViewProjection = mat4.multiply(projection, gameState.camera.viewNoTranslation());
-
 
 		this.device.queue.writeBuffer(
 			this.skyboxUniformBuffer,
@@ -581,12 +640,15 @@ export class Renderer {
 				timeArray.buffer,
 				timeArray.byteOffset,
 				timeArray.byteLength);
+
+			let cameraPos4 = vec4.create(0, 0, 0, 1);
+			vec3.copy(gameState.camera.position, cameraPos4);
 			this.device.queue.writeBuffer(
 				this.objectsUniformsBuffer,
 				36 * 4,
-				normalMatrix.buffer,
-				normalMatrix.byteOffset,
-				normalMatrix.byteLength);
+				cameraPos4.buffer,
+				cameraPos4.byteOffset,
+				cameraPos4.byteLength);
 		}
 
 		const commandEncoder = this.device.createCommandEncoder();
@@ -638,6 +700,7 @@ export class Renderer {
 		{
 			renderPass.setPipeline(this.objectsPipeline);
 			renderPass.setBindGroup(0, this.objectsGlobalsBindGroup);
+			renderPass.setBindGroup(1, this.lightingBindGroup);
 			renderPass.setVertexBuffer(0, this.cubeRenderMesh.vertexBuffer);
 			renderPass.setVertexBuffer(1, this.objectsInstanceBuffer);
 			renderPass.setIndexBuffer(this.cubeRenderMesh.indexBuffer, 'uint16');
@@ -682,23 +745,43 @@ export class Renderer {
 
 	public get gpuSample() { return this.timing.gpuSample; }
 
+	setLightingUniformBuffer(desc) {
+		const lightsArrayOffset = 0;
+		for (let i = 0; i < maxLights; i++) {
+			let lightData = new Float32Array(lightSize / 4);
+			let lightPositionData = new Float32Array(lightData.buffer, 0, 4);
+			let lightColorData = new Float32Array(lightData.buffer, 4 * 4, 4);
+			let lightScalarData = new Float32Array(lightData.buffer, 8 * 4, 4);
+			vec4.copy(desc.lights[i].position, lightPositionData);
+			vec4.copy(desc.lights[i].color, lightColorData);
+			vec4.copy(desc.lights[i].scalars, lightScalarData);
+			this.device.queue.writeBuffer(this.lightingUniformBuffer, lightsArrayOffset + i * lightSize, lightData);
+		}
+	};
+
 	public setObjectInstances(objects: Array<ObjectInstance>) {
 		try {
+
 			this.objectInstanceCount = objects.length;
-			var instanceData = new Float32Array(objects.length * ObjectInstanceFloat32Size);
 			for (var i = 0; i < objects.length; i++) {
-				var modelMatrixArray = new Float32Array(instanceData.buffer, i * ObjectInstanceByteSize, 16);
-				var normalMatrixArray = new Float32Array(instanceData.buffer, i * ObjectInstanceByteSize + 16 * 4, 9);
-				mat4.copy(objects[i].modelMatrix, modelMatrixArray);
-				const normalMatrix = mat3.transpose(mat3.inverse(mat3.fromMat4(objects[i].modelMatrix)));
-				mat3.copy(normalMatrix, normalMatrixArray);
+				const objectOffsetBytes = i * ObjectInstanceByteSize;
+				const object = objects[i];
+
+				this.device.queue.writeBuffer(
+					this.objectsInstanceBuffer,
+					objectOffsetBytes,
+					object.modelMatrix.buffer,
+					object.modelMatrix.byteOffset,
+					object.modelMatrix.byteLength);
+
+				this.device.queue.writeBuffer(
+					this.objectsInstanceBuffer,
+					objectOffsetBytes + 16 * 4,
+					object.normalMatrix.buffer,
+					object.normalMatrix.byteOffset,
+					object.normalMatrix.byteLength);
+
 			}
-			this.device.queue.writeBuffer(
-				this.objectsInstanceBuffer,
-				0,
-				instanceData.buffer,
-				instanceData.byteOffset,
-				instanceData.byteLength);
 		}
 		catch (err) {
 

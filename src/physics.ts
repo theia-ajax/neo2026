@@ -16,7 +16,7 @@ export interface PhysicsParameters {
 
 const createIntegrationParameters = (RAPIER: RAPIER_API, param?: PhysicsIntegrationParameters) => {
 	let rawIntegration = new RawIntegrationParameters();
-	rawIntegration.dt = param?.dt ?? 1.0 / 60.0;
+	rawIntegration.dt = (param?.dt ?? 1.0 / 60.0);
 	return rawIntegration;
 }
 
@@ -28,35 +28,33 @@ export class Physics {
 	constructor(RAPIER: RAPIER_API, params?: PhysicsParameters) {
 		this.RAPIER = RAPIER;
 		this.params = params;
-		
+
 		this.resetWorld();
 	}
-	
-	resetWorld()
-	{
+
+	resetWorld() {
 		const RAPIER = this.RAPIER;
 
 		if (this.world) {
 			this.world.free();
 			this.world = undefined;
 		}
-		
+
 		let params = this.params;
 		let gravity = new RAPIER.Vector3(0, -9.81, 0.0);
 		let world = new RAPIER.World(gravity, createIntegrationParameters(RAPIER, params?.integration));
 		this.world = world;
 		this.spawnColliders();
 	}
-	
-	spawnColliders()
-	{
+
+	spawnColliders() {
 		const RAPIER = this.RAPIER;
 
 		const baseHeight = 10;
-	
+
 		const count = 12;
 		const spacing = 1.1;
-	
+
 		for (var y = 4; y < count; y++) {
 			for (var x = 0; x < y; x++) {
 				var nx = x / y;
@@ -65,9 +63,10 @@ export class Physics {
 					let rigidBodyDesc = RAPIER.RigidBodyDesc.dynamic().setTranslation(
 						(nx - 0.5) * y * spacing, 5.0 + y * spacing + baseHeight, (nz - 0.5) * y * spacing);
 					let rigidBody = this.world.createRigidBody(rigidBodyDesc);
-	
+
 					const size = 0.5;
-					let colliderDesc = RAPIER.ColliderDesc.cuboid(size, size, size);
+
+					let colliderDesc = RAPIER.ColliderDesc.ball(size);
 					let collider = this.world.createCollider(colliderDesc, rigidBody);
 				}
 			}
@@ -137,11 +136,29 @@ export class Physics {
 		var objects = []
 
 		this.world.forEachCollider((collider) => {
-			if (collider.shapeType() == RAPIER.ShapeType.Cuboid) {
-				var scale = V3(collider.halfExtents());
-				var rotation = Q(collider.rotation());
-				var translation = V3(collider.translation());
+			var scale: Vec3;
+			var rotation: Quat;
+			var translation: Vec3;
+			var shouldRender = false;
 
+			switch (collider.shapeType()) {
+				case RAPIER.ShapeType.Cuboid: {
+					scale = V3(collider.halfExtents());
+					rotation = Q(collider.rotation());
+					translation = V3(collider.translation());
+					shouldRender = true;
+				}
+				case RAPIER.ShapeType.Ball: {
+					const s = collider.radius();
+					scale = vec3.create(s, s, s);
+
+					rotation = Q(collider.rotation());
+					translation = V3(collider.translation());
+					shouldRender = true;
+				}
+			}
+
+			if (shouldRender) {
 				var model = mat4.identity();
 
 				var matR = mat4.fromQuat(rotation);
@@ -149,8 +166,9 @@ export class Physics {
 				var matT = mat4.translate(model, translation);
 
 				var model = mat4.mul(matT, mat4.mul(matS, matR));
+				var normal = mat3.inverse(mat3.transpose(mat3.fromMat4(model)));
 
-				objects.push({modelMatrix: model});
+				objects.push({ modelMatrix: model, normalMatrix: normal });
 			}
 		});
 
