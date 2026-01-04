@@ -53,6 +53,7 @@ export class Renderer {
 	private skyboxUniformBuffer: GPUBuffer;
 	private skyboxBindGroup: GPUBindGroup;
 	private terrainBindGroup: GPUBindGroup;
+	private terrainLightingBindGroup: GPUBindGroup;
 	private modelViewProjection: Mat4;
 	private modelView: Mat4;
 	private timing: RenderTiming;
@@ -72,7 +73,7 @@ export class Renderer {
 	private objectsGlobalsBindGroup: GPUBindGroup;
 	private objectInstanceCount: number;
 	private lightingUniformBuffer: GPUBuffer;
-	private lightingBindGroup: GPUBindGroup;
+	private objectsLightingBindGroup: GPUBindGroup;
 	private cubeRenderMesh: MeshRenderable;
 	private lightingDesc: LightingDescriptor;
 
@@ -441,7 +442,7 @@ export class Renderer {
 		});
 
 		this.uniformBuffer = device.createBuffer({
-			size: 4 * 4 * 4 * 3 + 16,
+			size: 4 * 4 * 4 * 4 + 32,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
 
@@ -496,10 +497,11 @@ export class Renderer {
 			],
 		});
 
+
 		this.lightingDesc = {
 			lights: [
 				{
-					position: vec4.create(1, -1, 0.5, 0.0),
+					position: vec4.create(-1.5, -1, -0.5, 0.0),
 					color: vec4.create(1, 1, 1, 1),
 					scalars: vec4.create(1, 0.1, 0, 0),
 				},
@@ -521,7 +523,7 @@ export class Renderer {
 
 		this.setLightingUniformBuffer(this.lightingDesc);
 
-		this.lightingBindGroup = this.device.createBindGroup({
+		this.objectsLightingBindGroup = this.device.createBindGroup({
 			label: 'lighting',
 			layout: this.objectsPipeline.getBindGroupLayout(1),
 			entries: [
@@ -529,6 +531,19 @@ export class Renderer {
 					binding: 0,
 					resource: {
 						buffer: this.lightingUniformBuffer,
+					}
+				}
+			]
+		});
+
+		this.terrainLightingBindGroup = this.device.createBindGroup({
+			label: 'terrain lighting',
+			layout: this.terrainPipeline.getBindGroupLayout(1),
+			entries: [
+				{
+					binding: 0,
+					resource: {
+						buffer: this.lightingUniformBuffer
 					}
 				}
 			]
@@ -571,7 +586,7 @@ export class Renderer {
 
 	public draw(gameState: GameState) {
 		const aspect = this.context.canvas.width / this.context.canvas.height;
-		const projection = mat4.perspective(90 * Mathx.deg2Rad, aspect, 0.01, 1000.0);
+		const projection = mat4.perspective(75 * Mathx.deg2Rad, aspect, 0.01, 1000.0);
 		const view = gameState.camera.view;
 
 		const viewProjection = mat4.multiply(projection, view);
@@ -594,32 +609,50 @@ export class Renderer {
 		);
 
 		const model = gameState.terrain.getModelMatrix();
+		const normalMatrix = mat3.transpose(mat3.invert(mat3.fromMat4(model)));
 
 		mat4.multiply(view, model, this.modelView);
 		mat4.multiply(projection, this.modelView, this.modelViewProjection);
 
 		const timeArray = new Float32Array(4);
 		timeArray.fill(gameState.time.elapsedSec);
-		this.device.queue.writeBuffer(this.uniformBuffer, 48 * 4, timeArray.buffer, timeArray.byteOffset, timeArray.byteLength);
+		let cameraPos4 = vec4.create(0, 0, 0, 1);
+		vec3.copy(gameState.camera.position, cameraPos4);
 
-		this.device.queue.writeBuffer(
-			this.uniformBuffer,
-			0,
-			model.buffer,
-			model.byteOffset,
-			model.byteLength);
-		this.device.queue.writeBuffer(
-			this.uniformBuffer,
-			16 * 4,
-			view.buffer,
-			view.byteOffset,
-			view.byteLength);
-		this.device.queue.writeBuffer(
-			this.uniformBuffer,
-			32 * 4,
-			projection.buffer,
-			projection.byteOffset,
-			projection.byteLength);
+
+		{
+			this.device.queue.writeBuffer(
+				this.uniformBuffer,
+				0,
+				model.buffer,
+				model.byteOffset,
+				model.byteLength);
+			this.device.queue.writeBuffer(
+				this.uniformBuffer,
+				16 * 4,
+				view.buffer,
+				view.byteOffset,
+				view.byteLength);
+			this.device.queue.writeBuffer(
+				this.uniformBuffer,
+				32 * 4,
+				projection.buffer,
+				projection.byteOffset,
+				projection.byteLength);
+			this.device.queue.writeBuffer(this.uniformBuffer, 48 * 4, timeArray.buffer, timeArray.byteOffset, timeArray.byteLength);
+			this.device.queue.writeBuffer(
+				this.uniformBuffer,
+				52 * 4,
+				cameraPos4.buffer,
+				cameraPos4.byteOffset,
+				cameraPos4.byteLength);
+			this.device.queue.writeBuffer(
+				this.uniformBuffer,
+				56 * 4,
+				normalMatrix.buffer,
+				normalMatrix.byteOffset,
+				normalMatrix.byteLength);
+		}
 
 		{
 			this.device.queue.writeBuffer(
@@ -641,8 +674,6 @@ export class Renderer {
 				timeArray.byteOffset,
 				timeArray.byteLength);
 
-			let cameraPos4 = vec4.create(0, 0, 0, 1);
-			vec3.copy(gameState.camera.position, cameraPos4);
 			this.device.queue.writeBuffer(
 				this.objectsUniformsBuffer,
 				36 * 4,
@@ -700,7 +731,7 @@ export class Renderer {
 		{
 			renderPass.setPipeline(this.objectsPipeline);
 			renderPass.setBindGroup(0, this.objectsGlobalsBindGroup);
-			renderPass.setBindGroup(1, this.lightingBindGroup);
+			renderPass.setBindGroup(1, this.objectsLightingBindGroup);
 			renderPass.setVertexBuffer(0, this.cubeRenderMesh.vertexBuffer);
 			renderPass.setVertexBuffer(1, this.objectsInstanceBuffer);
 			renderPass.setIndexBuffer(this.cubeRenderMesh.indexBuffer, 'uint16');
@@ -710,6 +741,7 @@ export class Renderer {
 		if (gameState.terrain.renderMesh) {
 			renderPass.setPipeline(this.terrainPipeline);
 			renderPass.setBindGroup(0, this.terrainBindGroup);
+			renderPass.setBindGroup(1, this.terrainLightingBindGroup);
 			renderPass.setVertexBuffer(0, gameState.terrain.renderMesh.vertexBuffer);
 			renderPass.setIndexBuffer(gameState.terrain.renderMesh.indexBuffer, "uint32");
 			renderPass.drawIndexed(gameState.terrain.renderMesh.indexCount);

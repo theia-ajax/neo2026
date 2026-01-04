@@ -1,22 +1,31 @@
+const MAX_LIGHTS = 2;
+
 const modeAlbedoTexture = 0;
 const modeNormalTexture = 1;
 const modeNormalMap = 2;
 const modeWeird = 3;
 const modeSolidColor = 4;
+const modeBasicLight = 5;
 
 struct Uniforms {
 	modelMatrix: mat4x4f,
 	viewMatrix: mat4x4f,
 	projectionMatrix: mat4x4f,
 	time: vec4f,
+	cameraPosition: vec4f,
+	normalMatrix: mat3x3f,
 }
 
-struct Lighting {
-	viewLightPosition: vec4f,
-	mode: u32,
-	lightIntensity: f32,
-	depthScale: f32,
-	depthLayer: f32,
+struct Light {
+	position: vec4f,
+	color: vec4f,
+	diffuseScalar: f32,
+	ambientScalar: f32,
+	attenuation: f32,
+}
+
+struct LightingUniforms {
+	lights: array<Light, MAX_LIGHTS>,
 }
 
 struct VertexInput {
@@ -41,6 +50,7 @@ struct VertexOutput {
 @group(0) @binding(1) var textureSampler: sampler;
 @group(0) @binding(2) var diffuseMap: texture_2d<f32>;
 @group(0) @binding(3) var normalMap: texture_2d<f32>;
+@group(1) @binding(0) var<uniform> lighting : LightingUniforms;
 
 @vertex
 fn vertex_main(
@@ -59,32 +69,29 @@ fn vertex_main(
 	// vertPos.y += s;
 
 	output.Position = modelViewProjectionMatrix * vertPos;
-	output.viewPosition = uniforms.viewMatrix * vertPos;
-	output.viewNormal = normalize(uniforms.viewMatrix * vec4(input.normal, 0));
-	output.viewTangent = uniforms.viewMatrix * vec4(input.tangent, 0);
-	output.viewBitangent = uniforms.viewMatrix * vec4(input.bitangent, 0);
+	output.viewPosition = uniforms.modelMatrix * vertPos;
+	output.viewNormal = vec4f(normalize(uniforms.normalMatrix * input.normal), 0);
+	output.viewTangent = uniforms.viewMatrix * vec4f(input.tangent, 0);
+	output.viewBitangent = uniforms.viewMatrix * vec4f(input.bitangent, 0);
 	output.uv = input.uv;
 	output.vertPosition = vertPos;
 	return output;
 }
 
-
 @fragment
 fn fragment_main(
 	input: VertexOutput
 ) -> @location(0) vec4f {
-	var light : Lighting = Lighting(
-		vec4f(0, 1, 0, 0),
-		modeNormalMap,
-		1.0,
-		1.0,
-		1.0
-	);
 	
 	var albedoSample = textureSample(diffuseMap, textureSampler, input.uv);
 	var normalSample = textureSample(normalMap, textureSampler, input.uv);
 
-	switch (light.mode) {
+	const lightMode = modeBasicLight;
+	let lightPosition = lighting.lights[0].position;
+	const lightIntensity = 1;
+	let lightColor = lighting.lights[0].color;
+
+	switch (lightMode) {
 		case modeAlbedoTexture: {
 			return albedoSample;
 		}
@@ -101,13 +108,21 @@ fn fragment_main(
 			let baseColor = mixed;
 			// return vec4f(mixed, 1.0);
 
-			let lightDir = normalize(normalize(light.viewLightPosition) - input.viewPosition);
-			let diffuseLight = light.lightIntensity * max(dot(lightDir, input.viewNormal), 0);
+			let lightDir = normalize(normalize(lightPosition.xyz) - input.viewPosition.xyz);
+			let diffuseLight = lightIntensity * max(dot(lightDir, input.viewNormal.xyz), 0);
 			let diffuse = baseColor.rgb * diffuseLight;
 			return vec4f(diffuse, 1.0);
 		}
 		case modeSolidColor: {
 			return vec4f(0, 0, 1, 1);
+		}
+		case modeBasicLight: {
+			return vec4f(applyLight(
+				lighting.lights[0],
+				albedoSample.rgb,
+				input.viewNormal.xyz,
+				input.viewPosition.xyz,
+				normalize(uniforms.cameraPosition.xyz - input.viewPosition.xyz)), 1);
 		}
 		default: {
 			let tangentToView = mat3x3f(
@@ -119,12 +134,49 @@ fn fragment_main(
 
 			let tanNormal = normalSample.xyz * 2 - 1;
 			let viewNormal = normalize(tangentToView * tanNormal);
-			let viewFragToLight = light.viewLightPosition.xyz - input.viewPosition.xyz;
+			let viewFragToLight = normalize(lightPosition.xyz) - input.viewPosition.xyz;
 			let lightSqrDist = dot(viewFragToLight, viewFragToLight);
 			let viewLightDir = viewFragToLight * inverseSqrt(lightSqrDist);
-			let diffuseLight = light.lightIntensity * max(dot(viewLightDir, viewNormal.xyz), 0) / lightSqrDist;
+
+			let diffuseLight = lightIntensity * max(dot(viewLightDir, viewNormal.xyz), 0) / 1;
 			let diffuse = albedoSample.rgb * diffuseLight;
 			return vec4f(diffuse, 1.0);
 		}
 	}
+}
+
+fn applyLight(
+	light: Light,
+	surfaceColor: vec3f,
+	normal: vec3f,
+	surfacePos: vec3f,
+	surfaceToCamera: vec3f) -> vec3f
+{
+	let matSpecular: f32 = 3.0;
+	let shininess: f32 = 0.02;
+	let matSpecularColor = vec3f(shininess, shininess, shininess);
+
+	var surfaceToLight: vec3f;
+	var attenuation = 1.0;
+
+	if (light.position.w == 0.0) {
+		surfaceToLight = normalize(-light.position.xyz);
+	}
+	else {
+		surfaceToLight = normalize(light.position.xyz - surfacePos);
+		let distanceToLight = length(light.position.xyz - surfacePos);
+		attenuation = 1.0 / (1.0 + light.attenuation * pow(distanceToLight, 2));
+	}
+
+	let ambient = light.ambientScalar * surfaceColor * light.color.rgb;
+	let diffuseScalar = max(0.0, dot(normal, surfaceToLight)) * light.diffuseScalar;
+	let diffuse = diffuseScalar * surfaceColor * light.color.rgb;
+
+	var specularScalar = 0.0;
+	if (diffuseScalar > 0.0) {
+		specularScalar = pow(max(0.0, dot(surfaceToCamera, reflect(-surfaceToLight, normal))), matSpecular);
+	}
+	let specular = specularScalar * matSpecularColor * light.color.rgb;
+
+	return ambient + attenuation * (diffuse + specular);
 }

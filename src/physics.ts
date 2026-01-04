@@ -53,9 +53,9 @@ export class Physics {
 		const baseHeight = 10;
 
 		const count = 12;
-		const spacing = 1.1;
+		const spacing = 1.4;
 
-		for (var y = 4; y < count; y++) {
+		for (var y = 1; y < count; y++) {
 			for (var x = 0; x < y; x++) {
 				var nx = x / y;
 				for (var z = 0; z < y; z++) {
@@ -64,8 +64,9 @@ export class Physics {
 						(nx - 0.5) * y * spacing, 5.0 + y * spacing + baseHeight, (nz - 0.5) * y * spacing);
 					let rigidBody = this.world.createRigidBody(rigidBodyDesc);
 
-					const size = 0.5;
+					const size = 0.66;
 
+					// let colliderDesc = RAPIER.ColliderDesc.cuboid(size, size, size);
 					let colliderDesc = RAPIER.ColliderDesc.ball(size);
 					let collider = this.world.createCollider(colliderDesc, rigidBody);
 				}
@@ -148,14 +149,15 @@ export class Physics {
 					translation = V3(collider.translation());
 					shouldRender = true;
 				}
+				break;
 				case RAPIER.ShapeType.Ball: {
 					const s = collider.radius();
 					scale = vec3.create(s, s, s);
-
 					rotation = Q(collider.rotation());
 					translation = V3(collider.translation());
 					shouldRender = true;
 				}
+				break;
 			}
 
 			if (shouldRender) {

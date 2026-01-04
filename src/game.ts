@@ -68,6 +68,8 @@ class GameCallbackDriver {
 	public get callsLastUpdate() { return this.numCallsLastUpdate; }
 }
 
+const TERRAIN_SCALE = 0.5;
+
 export class Game {
 	private canvas: HTMLCanvasElement;
 	private device: GPUDevice;
@@ -84,7 +86,7 @@ export class Game {
 	reset() {
 		this.physics.resetWorld();
 		const physHeightmapData = getImageData(this.assets.getAsset('heightmap').image);
-		this.physics.createHeightmapCollider(physHeightmapData, vec3.create(0.25, 16, 0.25));
+		this.physics.createHeightmapCollider(physHeightmapData, vec3.create(TERRAIN_SCALE, 16, TERRAIN_SCALE));
 	}
 
 
@@ -114,13 +116,13 @@ export class Game {
 
 		this.gameState.terrain = new Terrain();
 		const physHeightmapData = getImageData(this.assets.getAsset('heightmap').image);
-		this.physics.createHeightmapCollider(physHeightmapData, vec3.create(0.25, 16, 0.25));
+		this.physics.createHeightmapCollider(physHeightmapData, vec3.create(TERRAIN_SCALE, 16, TERRAIN_SCALE));
 		const visHeightmapData = getImageData(this.assets.getAsset('heightmap').image);
 		createTerrainMeshFromHeightmapAsync(
 			visHeightmapData,
 			{
 				shading: 'diffuse',
-				scale: vec3.create(0.25, 16, 0.25),
+				scale: vec3.create(TERRAIN_SCALE, 16, TERRAIN_SCALE),
 			},
 			(mesh: Mesh) => {
 				this.gameState.terrain.initFromHeightmapMesh(this.device, mesh);
@@ -162,10 +164,10 @@ export class Game {
 		this.gameState.orbitCameraController = new AutoOrbitCameraController(this.gameState.camera);
 		{
 			let cc = this.gameState.orbitCameraController;
-			cc.target = vec3.create(0, 8, 0);
+			cc.target = vec3.create(0, 4, 0);
 			cc.orbitRate = 7.5;
-			cc.distance = 30;
-			cc.zenith = 25;
+			cc.distance = 45;
+			cc.zenith = 30;
 		}
 
 		this.gameState.camera.position = vec3.create(0, 24, 15);
@@ -173,7 +175,7 @@ export class Game {
 		this.gameState.tankCameraController.update(this.gameState, 0);
 
 		this.gameState.cameraController = this.gameState.tankCameraController;
-		// this.gameState.cameraController = this.gameState.orbitCameraController;
+		this.gameState.cameraController = this.gameState.orbitCameraController;
 		// // this.gameState.camera.position = vec3.create(0, 0, 5);
 		// this.gameState.camera.position = vec3.create(0, 16, 20);
 		// this.gameState.camera.position = vec3.create(-120, 10, -100);
@@ -219,7 +221,7 @@ export class Game {
 			orbitCameraFolder.add(settings, 'orbitCameraHeight', 0, 20).name('Height').onChange(() => {
 				this.gameState.orbitCameraController.target[1] = settings.orbitCameraHeight
 			});
-			orbitCameraFolder.add(settings, 'orbitCameraDistance', 0.1, 64).name('Distance').onChange(() => {
+			orbitCameraFolder.add(settings, 'orbitCameraDistance', 0.1, 128).name('Distance').onChange(() => {
 				(this.gameState.cameraController as AutoOrbitCameraController).distance = settings.orbitCameraDistance;
 			});
 			orbitCameraFolder.add(settings, 'orbitCameraZenith', -90, 90).name('Zenith').onChange(() => {
@@ -239,6 +241,8 @@ export class Game {
 			new GameCallbackDriver("Render", (gs: GameState) => { this.render(gs); }),
 			new GameCallbackDriver("Post Frame", (gs: GameState) => { this.postFrame(gs); }),
 		];
+
+		setInterval(() => { this.reset() }, 20 * 1000.0);
 
 		requestAnimationFrame((timestamp) => { this.mainLoop(timestamp) });
 	}

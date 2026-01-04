@@ -83,7 +83,7 @@ fn vertex_main(
 	let vertPosition = vec4f(vertex.position, 1.0);
 	output.Position = modelViewProjectionMatrix * vertPosition;
 	output.uv = vertex.uv;
-	output.viewPosition = modelViewMatrix * vertPosition;
+	output.viewPosition = modelMatrix * vertPosition;
 	output.viewNormal = normalMatrix * vertex.normal;
 	output.vertPosition = vertPosition;
 	output.vertNormal = vertex.normal;
@@ -99,7 +99,8 @@ fn applyLight(
 	surfaceToCamera: vec3f) -> vec3f
 {
 	let matSpecular = 1.0;
-	let matSpecularColor = vec3f(0, 0,0 );
+	let shininess = 0.3;
+	let matSpecularColor = vec3f(shininess, shininess, shininess);
 
 	var surfaceToLight: vec3f;
 	var attenuation = 1.0;
@@ -144,7 +145,7 @@ fn fragment_main(
 			surfaceColor.rgb, 
 			input.viewNormal, 
 			input.viewPosition.xyz,
-			normalize(input.viewPosition.xyz - uniforms.cameraPosition.xyz));
+			normalize(uniforms.cameraPosition.xyz - input.viewPosition.xyz));
 	}
     
 	let gamma = vec3f(1.0/2.2);
