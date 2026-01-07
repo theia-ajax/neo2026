@@ -12,7 +12,7 @@ import getImageData from "./assets/imageData"
 import { createTerrainMeshFromHeightmapAsync } from "@/assets/meshes/heightmapTerrainAsync"
 import { createMeshRenderable, type Mesh } from "@/render/mesh"
 import { cubePositionOnly } from "@/assets/meshes/cube"
-import { Physics } from "@/physics"
+import { Physics, type PhysicsScene } from "@/physics"
 import { vec3, vec4, mat3, mat4, type Vec3, type Vec4, type Mat3, type Mat4 } from 'wgpu-matrix'
 import { Mathx } from "@/core/mathx"
 type RAPIER_API = typeof import("@dimforge/rapier3d");
@@ -85,26 +85,29 @@ export class Game {
 	private inputHandler: InputHandler;
 	private physics: Physics;
 
-	reset() {
-		this.physics.resetWorld();
+	reset(scene?: PhysicsScene) {
+		this.physics.resetWorld(scene);
 		const physHeightmapData = getImageData(this.assets.getAsset('heightmap').image);
 		this.physics.createHeightmapCollider(physHeightmapData, vec3.create(TERRAIN_SCALE, 16, TERRAIN_SCALE));
 	}
 
+	physicsSettingsFromWorldSettings(worldSettings: any) {
+		return {
+			objectCount: worldSettings.objectCount,
+			spawnOffset: worldSettings.spawnOffset,
+			spawnExtents: worldSettings.spawnExtents,
+		};
+	}
 
 	constructor(canvas: HTMLCanvasElement, device: GPUDevice, assets: AssetDatabase, RAPIER: RAPIER_API) {
-		const demoMode = location.hostname != 'localhost';
-		// const demoMode = true;
+		let demoMode = location.hostname != 'localhost';
+		// demoMode = true;
 
 		this.canvas = canvas;
 		this.device = device;
 		this.assets = assets;
 
-
 		this.inputHandler = createInputHandler(window, canvas);
-
-
-		this.physics = new Physics(RAPIER, { integration: { dt: FIXED_DELTA_SECONDS } });
 
 		this.gameState = new GameState();
 
@@ -120,8 +123,7 @@ export class Game {
 		this.gameState.input = this.inputHandler();
 
 		this.gameState.terrain = new Terrain();
-		const physHeightmapData = getImageData(this.assets.getAsset('heightmap').image);
-		this.physics.createHeightmapCollider(physHeightmapData, vec3.create(TERRAIN_SCALE, 16, TERRAIN_SCALE));
+
 		const visHeightmapData = getImageData(this.assets.getAsset('heightmap').image);
 		createTerrainMeshFromHeightmapAsync(
 			visHeightmapData,
@@ -162,9 +164,7 @@ export class Game {
 			);
 		}
 		this.gameState.skyboxTexture = skyboxTexture;
-
 		this.gameState.camera = new Camera();
-
 
 		this.gameState.orbitCameraController = new AutoOrbitCameraController(this.gameState.camera);
 		{
@@ -190,7 +190,14 @@ export class Game {
 			orbitCameraDistance: this.gameState.orbitCameraController.distance,
 			orbitCameraZenith: this.gameState.orbitCameraController.zenith,
 			orbitCameraOrbitRate: this.gameState.orbitCameraController.orbitRate,
-			reset: () => { this.reset(); },
+			world: {
+				objectCount: 256,
+				spawnExtents: { x: 2, y: 12, z: 2 },
+				spawnOffset: { x: 0, y: 21, z: 0 },
+				reset: () => {
+					this.reset(this.physicsSettingsFromWorldSettings(settings.world));
+				},
+			},
 			lighting: {
 				globalZenith: 15.0,
 				globalAzimuth: 180.0,
@@ -208,19 +215,27 @@ export class Game {
 		this.cpuSampler = new SampleBuffer(60);
 		this.fpsSampler = new SampleBuffer(60);
 
+		const cameraFolders = {};
+
 		const gui = new GUI();
 		if (demoMode) {
-			gui.close();
+			// gui.close();
 		}
 		gui.add(settings, 'showDebug').onChange(() => {
 			debug.setVisible(settings.showDebug);
 		});
 		gui.add(settings, 'cameraType', { Orbit: 'orbit', Tank: 'tank' }).onChange(() => {
-			console.log(settings.cameraType);
+			for (var key in cameraFolders) {
+				cameraFolders[key].close();
+			}
+			cameraFolders[settings.cameraType].open();
 			this.gameState.cameraController = this.gameState.cameraControllers[settings.cameraType];
 			this.gameState.cameraController.restoreState();
 		});
-		const tankCameraFolder = gui.addFolder('Tank Camera');
+
+		const cameraFolder = gui.addFolder('Camera');
+		const tankCameraFolder = cameraFolder.addFolder('Tank Camera');
+		cameraFolders['tank'] = tankCameraFolder;
 		{
 			tankCameraFolder.add(settings, 'tankCameraMoveSpeed', 0, 20).name('Move Speed').onChange(() => {
 				this.gameState.tankCameraController.moveSpeed = settings.tankCameraMoveSpeed;
@@ -229,7 +244,8 @@ export class Game {
 				this.gameState.tankCameraController.turnRateDegrees = settings.tankCameraTurnRate;
 			});
 		}
-		const orbitCameraFolder = gui.addFolder('Orbit Camera');
+		const orbitCameraFolder = cameraFolder.addFolder('Orbit Camera');
+		cameraFolders['orbit'] = orbitCameraFolder;
 		{
 			orbitCameraFolder.add(settings, 'orbitCameraHeight', 0, 20).name('Height').onChange(() => {
 				this.gameState.orbitCameraController.target[1] = settings.orbitCameraHeight
@@ -245,7 +261,7 @@ export class Game {
 			});
 		}
 		const lightingFolder = gui.addFolder('Lighting');
-		lightingFolder.open();
+		// lightingFolder.open();
 		{
 			const updateDirectionalLight = (lighting) => {
 				const theta = -lighting.globalAzimuth * Mathx.deg2Rad;
@@ -261,13 +277,8 @@ export class Game {
 				const blue = (hex & 0xFF) / 255.0;
 				const green = ((hex >> 8) & 0xFF) / 255.0;
 				const red = ((hex >> 16) & 0xFF) / 255.0;
-				console.log(red, green, blue);
 				const color = vec3.create(red, green, blue);
 
-				console.log(`Azimuth: ${lighting.globalAzimuth}`);
-				console.log(`Zenith: ${lighting.globalZenith}`);
-				console.log(`Color: ${lighting.color}`);
-				console.log(`Diffuse: ${lighting.diffuseScalar}\nAmbient: ${lighting.ambientScalar}`);
 				this.renderer.updateDirectionalLight(
 					direction, color, lighting.diffuseScalar, lighting.ambientScalar);
 			}
@@ -280,8 +291,33 @@ export class Game {
 
 			updateDirectionalLight(settings.lighting);
 		}
-		gui.add(settings, 'reset').name('Reset World');
+		const worldFolder = gui.addFolder('World');
+		// worldFolder.open();
+		{
+			worldFolder.add(settings.world, 'objectCount', 0, 4096).name('Object Count').onChange(() => settings.world.reset());
+			worldFolder.add(settings.world.spawnOffset, 'x').name('Spawn Offset X').onChange(() => settings.world.reset());
+			worldFolder.add(settings.world.spawnOffset, 'y').name('Spawn Offset Y').onChange(() => settings.world.reset());
+			worldFolder.add(settings.world.spawnOffset, 'z').name('Spawn Offset Z').onChange(() => settings.world.reset());
+			worldFolder.add(settings.world.spawnExtents, 'x').name('Spawn Extents X').onChange(() => settings.world.reset());
+			worldFolder.add(settings.world.spawnExtents, 'y').name('Spawn Extents Y').onChange(() => settings.world.reset());
+			worldFolder.add(settings.world.spawnExtents, 'z').name('Spawn Extents Z').onChange(() => settings.world.reset());
+			worldFolder.add(settings.world, 'reset').name('Reset World');
+		}
 
+		for (var key in cameraFolders) {
+			if (key == settings.cameraType) {
+				cameraFolders[key].open();
+			} else {
+				cameraFolders[key].close();
+			}
+		}
+
+		this.physics = new Physics(
+			RAPIER,
+			{ integration: { dt: FIXED_DELTA_SECONDS } },
+			this.physicsSettingsFromWorldSettings(settings.world));
+		const physHeightmapData = getImageData(this.assets.getAsset('heightmap').image);
+		this.physics.createHeightmapCollider(physHeightmapData, vec3.create(TERRAIN_SCALE, 16, TERRAIN_SCALE));
 
 		this.gameCallbacks = [
 			new GameCallbackDriver("Pre Frame", (gs: GameState) => { this.preFrame(gs); }),

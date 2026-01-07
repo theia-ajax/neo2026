@@ -7,6 +7,12 @@ import seedrandom from "seedrandom";
 
 type RAPIER_API = typeof import("@dimforge/rapier3d");
 
+export interface PhysicsScene {
+	objectCount: number;
+	spawnOffset?: RAPIER.Vector3,
+	spawnExtents?: RAPIER.Vector3,
+}
+
 export interface PhysicsIntegrationParameters {
 	dt?: number;
 }
@@ -26,14 +32,14 @@ export class Physics {
 	world: World;
 	params: PhysicsParameters;
 
-	constructor(RAPIER: RAPIER_API, params?: PhysicsParameters) {
+	constructor(RAPIER: RAPIER_API, params?: PhysicsParameters, scene?: PhysicsScene) {
 		this.RAPIER = RAPIER;
 		this.params = params;
 
-		this.resetWorld();
+		this.resetWorld(scene);
 	}
 
-	resetWorld() {
+	resetWorld(scene?: PhysicsScene) {
 		const RAPIER = this.RAPIER;
 
 		if (this.world) {
@@ -45,35 +51,36 @@ export class Physics {
 		let gravity = new RAPIER.Vector3(0, -9.81, 0.0);
 		let world = new RAPIER.World(gravity, createIntegrationParameters(RAPIER, params?.integration));
 		this.world = world;
-		this.spawnColliders();
+		this.spawnColliders(scene);
 	}
 
-	spawnColliders() {
+	spawnColliders(scene?: PhysicsScene) {
 		const RAPIER = this.RAPIER;
 
-		const baseHeight = 20;
-		const count = 1000;
-		const spacing = 0.3;
-
-		
+		const count = scene?.objectCount ?? 100;
+		const spawnOffset = scene?.spawnOffset ?? RAPIER.VectorOps.zeros();
+		const spawnExtents = scene?.spawnExtents ?? new RAPIER.Vector3(4, 4, 4);
 		var rng = seedrandom.xor128(performance.now().toString());
-		
 
 		const randomRange = (min, max) => {
 			return rng() * Math.abs(max - min) + min;
 		}
 
-		const randomPos = (size) => {
-			const half = size / 2;
+		const randomPos = (offset, extents) => {
+			const half = {
+				x: extents.x / 2,
+				y: extents.y / 2,
+				z: extents.z / 2,
+			}
 			return {
-				x: randomRange(-half, half),
-				y: baseHeight + randomRange(0, 50),
-				z: randomRange(-half, half),
+				x: offset.x + randomRange(-half.x, half.x),
+				y: offset.y + randomRange(-half.y, half.y),
+				z: offset.z + randomRange(-half.z, half.z),
 			}
 		};
 
 		for (var i = 0; i < count; i++) {
-			var pos = randomPos(2);
+			var pos = randomPos(spawnOffset, spawnExtents);
 			let rigidBodyDesc = RAPIER.RigidBodyDesc.dynamic().setTranslation(pos.x, pos.y, pos.z);
 			let rigidBody = this.world.createRigidBody(rigidBodyDesc);
 
@@ -83,8 +90,6 @@ export class Physics {
 			let colliderDesc = RAPIER.ColliderDesc.ball(size);
 			let collider = this.world.createCollider(colliderDesc, rigidBody);
 		}
-
-
 
 		// for (var y = 1; y < count; y++) {
 		// 	for (var x = 0; x < y; x++) {
