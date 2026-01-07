@@ -97,8 +97,8 @@ fn applyLight(
 	surfacePos: vec3f,
 	surfaceToCamera: vec3f) -> vec3f
 {
-	let matSpecular: f32 = 0.1;
-	let shininess: f32 = 0.2;
+	let matSpecular: f32 = 1;
+	let shininess: f32 = 0;
 	let matSpecularColor = vec3f(shininess, shininess, shininess);
 
 	var surfaceToLight: vec3f;
@@ -123,7 +123,8 @@ fn applyLight(
 	}
 	let specular = specularScalar * matSpecularColor * light.color.rgb;
 
-	return ambient + attenuation * (diffuse + specular);
+	return ambient + attenuation * (diffuse);
+	// return ambient + attenuation * (diffuse + specular);
 }
 
 @fragment

@@ -14,11 +14,13 @@ import { createMeshRenderable, type Mesh } from "@/render/mesh"
 import { cubePositionOnly } from "@/assets/meshes/cube"
 import { Physics } from "@/physics"
 import { vec3, vec4, mat3, mat4, type Vec3, type Vec4, type Mat3, type Mat4 } from 'wgpu-matrix'
+import { Mathx } from "@/core/mathx"
 type RAPIER_API = typeof import("@dimforge/rapier3d");
 
 const FIXED_UPDATE_HERTZ = 60;
 const FIXED_DELTA_SECONDS = 1 / FIXED_UPDATE_HERTZ;
 
+type LightType = 'point' | 'directional';
 
 export interface GameTime {
 	deltaSec: number;
@@ -91,6 +93,9 @@ export class Game {
 
 
 	constructor(canvas: HTMLCanvasElement, device: GPUDevice, assets: AssetDatabase, RAPIER: RAPIER_API) {
+		const demoMode = location.hostname != 'localhost';
+		// const demoMode = true;
+
 		this.canvas = canvas;
 		this.device = device;
 		this.assets = assets;
@@ -164,33 +169,39 @@ export class Game {
 		this.gameState.orbitCameraController = new AutoOrbitCameraController(this.gameState.camera);
 		{
 			let cc = this.gameState.orbitCameraController;
-			cc.target = vec3.create(0, 4, 0);
+			cc.target = vec3.create(0, 6, 0);
 			cc.orbitRate = 7.5;
-			cc.distance = 45;
-			cc.zenith = 30;
+			cc.distance = 35;
+			cc.zenith = 25;
 		}
 
 		this.gameState.camera.position = vec3.create(0, 15, 15);
 		this.gameState.tankCameraController = new TankCameraController(this.gameState.camera);
 		this.gameState.tankCameraController.update(this.gameState, 0);
 
-		this.gameState.cameraController = this.gameState.tankCameraController;
-		// this.gameState.cameraController = this.gameState.orbitCameraController;
-		// // this.gameState.camera.position = vec3.create(0, 0, 5);
-		// this.gameState.camera.position = vec3.create(0, 16, 20);
-		// this.gameState.camera.position = vec3.create(-120, 10, -100);
+		debug.setVisible(!demoMode);
 
 		const settings = {
-			showDebug: debug.getVisible(),
-			cameraType: 'orbit',
+			showDebug: demoMode ? false : debug.getVisible(),
+			cameraType: demoMode ? 'orbit' : 'tank',
 			tankCameraMoveSpeed: this.gameState.tankCameraController.moveSpeed,
 			tankCameraTurnRate: this.gameState.tankCameraController.turnRateDegrees,
 			orbitCameraHeight: this.gameState.orbitCameraController.target[1],
 			orbitCameraDistance: this.gameState.orbitCameraController.distance,
 			orbitCameraZenith: this.gameState.orbitCameraController.zenith,
 			orbitCameraOrbitRate: this.gameState.orbitCameraController.orbitRate,
-			reset: () => { this.reset(); }
+			reset: () => { this.reset(); },
+			lighting: {
+				globalZenith: 15.0,
+				globalAzimuth: 180.0,
+				diffuseScalar: 0.3,
+				ambientScalar: 0.0,
+				color: "#e3c06a"
+			}
 		};
+
+		this.gameState.cameraController = this.gameState.cameraControllers[settings.cameraType];
+		this.gameState.cameraController.restoreState();
 
 		this.renderer = new Renderer(this.canvas, this.device, this.gameState);
 
@@ -198,7 +209,9 @@ export class Game {
 		this.fpsSampler = new SampleBuffer(60);
 
 		const gui = new GUI();
-		gui.close();
+		if (demoMode) {
+			gui.close();
+		}
 		gui.add(settings, 'showDebug').onChange(() => {
 			debug.setVisible(settings.showDebug);
 		});
@@ -230,6 +243,42 @@ export class Game {
 			orbitCameraFolder.add(settings, 'orbitCameraOrbitRate', -90, 90).name('Orbit Rate').onChange(() => {
 				this.gameState.orbitCameraController.orbitRate = settings.orbitCameraOrbitRate;
 			});
+		}
+		const lightingFolder = gui.addFolder('Lighting');
+		lightingFolder.open();
+		{
+			const updateDirectionalLight = (lighting) => {
+				const theta = -lighting.globalAzimuth * Mathx.deg2Rad;
+				const phi = -lighting.globalZenith * Mathx.deg2Rad;
+
+				const direction = vec3.create(
+					Math.cos(theta) * Math.cos(phi),
+					Math.sin(phi),
+					Math.sin(theta) * Math.cos(phi),
+				);
+
+				const hex = parseInt(lighting.color.substring(1), 16);
+				const blue = (hex & 0xFF) / 255.0;
+				const green = ((hex >> 8) & 0xFF) / 255.0;
+				const red = ((hex >> 16) & 0xFF) / 255.0;
+				console.log(red, green, blue);
+				const color = vec3.create(red, green, blue);
+
+				console.log(`Azimuth: ${lighting.globalAzimuth}`);
+				console.log(`Zenith: ${lighting.globalZenith}`);
+				console.log(`Color: ${lighting.color}`);
+				console.log(`Diffuse: ${lighting.diffuseScalar}\nAmbient: ${lighting.ambientScalar}`);
+				this.renderer.updateDirectionalLight(
+					direction, color, lighting.diffuseScalar, lighting.ambientScalar);
+			}
+
+			lightingFolder.add(settings.lighting, 'globalZenith', -90, 90).name('Global Pitch').onChange(() => { updateDirectionalLight(settings.lighting); });
+			lightingFolder.add(settings.lighting, 'globalAzimuth', 0, 360).name('Global Yaw').onChange(() => { updateDirectionalLight(settings.lighting); });
+			lightingFolder.add(settings.lighting, 'diffuseScalar').name('Diffuse Scalar').onChange(() => { updateDirectionalLight(settings.lighting); });
+			lightingFolder.add(settings.lighting, 'ambientScalar', 0.0, 1.0).name('Ambient Scalar').onChange(() => { updateDirectionalLight(settings.lighting); });
+			lightingFolder.addColor(settings.lighting, 'color').onChange(() => { updateDirectionalLight(settings.lighting); });
+
+			updateDirectionalLight(settings.lighting);
 		}
 		gui.add(settings, 'reset').name('Reset World');
 

@@ -1,6 +1,6 @@
 import * as debug from "@/debug/debug"
 
-import { mat3, mat4, vec3, vec4, type Vec4, type Mat4, type Mat3 } from 'wgpu-matrix';
+import { mat3, mat4, vec3, vec4, type Vec4, type Mat4, type Mat3, type Vec3 } from 'wgpu-matrix';
 import terrainWGSL from '@shaders/terrain.wgsl?raw'
 import skyboxWGSL from '@shaders/skybox.wgsl?raw'
 import instancedTexturedLitWGSL from '@shaders/instancedTexturedLit.wgsl?raw'
@@ -498,7 +498,7 @@ export class Renderer {
 		});
 
 
-		const atten = 2;
+		const atten = 0.1;
 
 		this.lightingDesc = {
 			lights: [
@@ -811,16 +811,31 @@ export class Renderer {
 			if (light == undefined) {
 				break;
 			}
-			let lightData = new Float32Array(lightSize / 4);
-			let lightPositionData = new Float32Array(lightData.buffer, 0, 4);
-			let lightColorData = new Float32Array(lightData.buffer, 4 * 4, 4);
-			let lightScalarData = new Float32Array(lightData.buffer, 8 * 4, 4);
-			vec4.copy(desc.lights[i].position, lightPositionData);
-			vec4.copy(desc.lights[i].color, lightColorData);
-			vec4.copy(desc.lights[i].scalars, lightScalarData);
-			this.device.queue.writeBuffer(this.lightingUniformBuffer, lightsArrayOffset + i * lightSize, lightData);
+			this.setLightUniform(light, i);
 		}
 	};
+	
+	setLightUniform(light, lightIndex) {
+		const lightsArrayOffset = 0;
+		let lightData = new Float32Array(lightSize / 4);
+		let lightPositionData = new Float32Array(lightData.buffer, 0, 4);
+		let lightColorData = new Float32Array(lightData.buffer, 4 * 4, 4);
+		let lightScalarData = new Float32Array(lightData.buffer, 8 * 4, 4);
+		vec4.copy(light.position, lightPositionData);
+		vec4.copy(light.color, lightColorData);
+		vec4.copy(light.scalars, lightScalarData);
+		this.device.queue.writeBuffer(this.lightingUniformBuffer, lightsArrayOffset + lightIndex * lightSize, lightData);
+	}
+
+
+	updateDirectionalLight(direction: Vec3, color: Vec3, diffuse: number, ambient: number) {
+		vec3.copy(direction, this.lightingDesc.lights[0].position);
+		vec3.copy(color, this.lightingDesc.lights[0].color);
+		this.lightingDesc.lights[0].scalars[0] = diffuse;
+		this.lightingDesc.lights[0].scalars[1] = ambient;
+		this.lightingDesc.lights[0].scalars[2] = 1;
+		this.setLightUniform(this.lightingDesc.lights[0], 0);
+	}
 
 	public setObjectInstances(objects: Array<ObjectInstance>) {
 		try {
