@@ -3,6 +3,7 @@ import { RawIntegrationParameters, RawVector } from "@dimforge/rapier3d/rapier_w
 import { type Vec3, type Quat, vec3, mat4, mat3, quat } from 'wgpu-matrix'
 import type { Renderer } from "@/render/renderer";
 import RAPIER from "@dimforge/rapier3d";
+import seedrandom from "seedrandom";
 
 type RAPIER_API = typeof import("@dimforge/rapier3d");
 
@@ -50,28 +51,58 @@ export class Physics {
 	spawnColliders() {
 		const RAPIER = this.RAPIER;
 
-		const baseHeight = 10;
+		const baseHeight = 20;
+		const count = 1000;
+		const spacing = 0.3;
 
-		const count = 12;
-		const spacing = 1.4;
+		
+		var rng = seedrandom.xor128(performance.now().toString());
+		
 
-		for (var y = 1; y < count; y++) {
-			for (var x = 0; x < y; x++) {
-				var nx = x / y;
-				for (var z = 0; z < y; z++) {
-					var nz = z / y;
-					let rigidBodyDesc = RAPIER.RigidBodyDesc.dynamic().setTranslation(
-						(nx - 0.5) * y * spacing, 5.0 + y * spacing + baseHeight, (nz - 0.5) * y * spacing);
-					let rigidBody = this.world.createRigidBody(rigidBodyDesc);
-
-					const size = 0.66;
-
-					// let colliderDesc = RAPIER.ColliderDesc.cuboid(size, size, size);
-					let colliderDesc = RAPIER.ColliderDesc.ball(size);
-					let collider = this.world.createCollider(colliderDesc, rigidBody);
-				}
-			}
+		const randomRange = (min, max) => {
+			return rng() * Math.abs(max - min) + min;
 		}
+
+		const randomPos = (size) => {
+			const half = size / 2;
+			return {
+				x: randomRange(-half, half),
+				y: baseHeight + randomRange(0, 50),
+				z: randomRange(-half, half),
+			}
+		};
+
+		for (var i = 0; i < count; i++) {
+			var pos = randomPos(2);
+			let rigidBodyDesc = RAPIER.RigidBodyDesc.dynamic().setTranslation(pos.x, pos.y, pos.z);
+			let rigidBody = this.world.createRigidBody(rigidBodyDesc);
+
+			const size = 0.2;
+
+			// let colliderDesc = RAPIER.ColliderDesc.cuboid(size, size, size);
+			let colliderDesc = RAPIER.ColliderDesc.ball(size);
+			let collider = this.world.createCollider(colliderDesc, rigidBody);
+		}
+
+
+
+		// for (var y = 1; y < count; y++) {
+		// 	for (var x = 0; x < y; x++) {
+		// 		var nx = x / y;
+		// 		for (var z = 0; z < y; z++) {
+		// 			var nz = z / y;
+		// 			let rigidBodyDesc = RAPIER.RigidBodyDesc.dynamic().setTranslation(
+		// 				(nx - 0.5) * y * spacing, 5.0 + y * spacing + baseHeight, (nz - 0.5) * y * spacing);
+		// 			let rigidBody = this.world.createRigidBody(rigidBodyDesc);
+
+		// 			const size = 0.2;
+
+		// 			// let colliderDesc = RAPIER.ColliderDesc.cuboid(size, size, size);
+		// 			let colliderDesc = RAPIER.ColliderDesc.ball(size);
+		// 			let collider = this.world.createCollider(colliderDesc, rigidBody);
+		// 		}
+		// 	}
+		// }
 	}
 
 
@@ -149,7 +180,7 @@ export class Physics {
 					translation = V3(collider.translation());
 					shouldRender = true;
 				}
-				break;
+					break;
 				case RAPIER.ShapeType.Ball: {
 					const s = collider.radius();
 					scale = vec3.create(s, s, s);
@@ -157,7 +188,7 @@ export class Physics {
 					translation = V3(collider.translation());
 					shouldRender = true;
 				}
-				break;
+					break;
 			}
 
 			if (shouldRender) {

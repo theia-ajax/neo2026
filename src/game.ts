@@ -170,12 +170,12 @@ export class Game {
 			cc.zenith = 30;
 		}
 
-		this.gameState.camera.position = vec3.create(0, 24, 15);
+		this.gameState.camera.position = vec3.create(0, 15, 15);
 		this.gameState.tankCameraController = new TankCameraController(this.gameState.camera);
 		this.gameState.tankCameraController.update(this.gameState, 0);
 
 		this.gameState.cameraController = this.gameState.tankCameraController;
-		this.gameState.cameraController = this.gameState.orbitCameraController;
+		// this.gameState.cameraController = this.gameState.orbitCameraController;
 		// // this.gameState.camera.position = vec3.create(0, 0, 5);
 		// this.gameState.camera.position = vec3.create(0, 16, 20);
 		// this.gameState.camera.position = vec3.create(-120, 10, -100);
@@ -242,7 +242,7 @@ export class Game {
 			new GameCallbackDriver("Post Frame", (gs: GameState) => { this.postFrame(gs); }),
 		];
 
-		setInterval(() => { this.reset() }, 20 * 1000.0);
+		// setInterval(() => { this.reset() }, 20 * 1000.0);
 
 		requestAnimationFrame((timestamp) => { this.mainLoop(timestamp) });
 	}
@@ -337,8 +337,8 @@ export class Game {
 			const totalDays = totalHours / 24;
 
 			const seconds = totalSeconds % 60;
-			const minutes = Math.floor(totalMinutes);
-			const hours = Math.floor(totalHours);
+			const minutes = Math.floor(totalMinutes) % 60;
+			const hours = Math.floor(totalHours) % 24;
 			const days = Math.floor(totalDays);
 
 			const secondsDisplay = seconds.toFixed(3).padStart(6, "0")

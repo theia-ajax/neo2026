@@ -1,4 +1,4 @@
-const MAX_LIGHTS = 2;
+const MAX_LIGHTS = 16;
 
 const modeAlbedoTexture = 0;
 const modeNormalTexture = 1;
@@ -70,9 +70,9 @@ fn vertex_main(
 
 	output.Position = modelViewProjectionMatrix * vertPos;
 	output.viewPosition = uniforms.modelMatrix * vertPos;
-	output.viewNormal = vec4f(normalize(uniforms.normalMatrix * input.normal), 0);
-	output.viewTangent = uniforms.viewMatrix * vec4f(input.tangent, 0);
-	output.viewBitangent = uniforms.viewMatrix * vec4f(input.bitangent, 0);
+	output.viewNormal = vec4f(uniforms.normalMatrix * input.normal, 0);
+	output.viewTangent = vec4f(uniforms.normalMatrix * input.tangent, 0);
+	output.viewBitangent = vec4f(uniforms.normalMatrix * input.bitangent, 0);
 	output.uv = input.uv;
 	output.vertPosition = vertPos;
 	return output;
@@ -86,7 +86,7 @@ fn fragment_main(
 	var albedoSample = textureSample(diffuseMap, textureSampler, input.uv);
 	var normalSample = textureSample(normalMap, textureSampler, input.uv);
 
-	const lightMode = modeBasicLight;
+	const lightMode =  modeBasicLight;
 	let lightPosition = lighting.lights[0].position;
 	const lightIntensity = 1;
 	let lightColor = lighting.lights[0].color;
@@ -117,12 +117,20 @@ fn fragment_main(
 			return vec4f(0, 0, 1, 1);
 		}
 		case modeBasicLight: {
-			return vec4f(applyLight(
-				lighting.lights[0],
-				albedoSample.rgb,
-				input.viewNormal.xyz,
-				input.viewPosition.xyz,
-				normalize(uniforms.cameraPosition.xyz - input.viewPosition.xyz)), 1);
+			var linearColor = vec3f(0);
+			let surfaceToCamera = normalize(uniforms.cameraPosition.xyz - input.viewPosition.xyz);
+			for (var i = 0; i < MAX_LIGHTS; i++) {
+				let light = lighting.lights[i];
+				linearColor += applyLight(
+					light,
+					albedoSample.rgb,
+					input.viewNormal.xyz,
+					input.viewPosition.xyz,
+					surfaceToCamera);
+			}
+
+			let gamma = vec3f(1.0 / 2.2);
+			return vec4f(pow(linearColor, gamma), albedoSample.a);
 		}
 		default: {
 			let tangentToView = mat3x3f(
@@ -152,8 +160,8 @@ fn applyLight(
 	surfacePos: vec3f,
 	surfaceToCamera: vec3f) -> vec3f
 {
-	let matSpecular: f32 = 3.0;
-	let shininess: f32 = 0.02;
+	let matSpecular: f32 = 1;
+	let shininess: f32 = 0;
 	let matSpecularColor = vec3f(shininess, shininess, shininess);
 
 	var surfaceToLight: vec3f;

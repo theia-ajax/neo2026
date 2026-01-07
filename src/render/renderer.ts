@@ -36,7 +36,7 @@ const ObjectInstanceFloat32Size = (1 * 4 * 4) + (1 * 4 * 3);
 const ObjectInstanceByteSize = ObjectInstanceFloat32Size * 4;
 
 const lightSize = (4 + 4 + 4) * 4;
-const maxLights = 2;
+const maxLights = 16;
 const lightingUniformSize = lightSize * maxLights;
 
 const MAX_OBJECTS = 4096;
@@ -498,17 +498,44 @@ export class Renderer {
 		});
 
 
+		const atten = 2;
+
 		this.lightingDesc = {
 			lights: [
 				{
-					position: vec4.create(-1.5, -1, -0.5, 0.0),
-					color: vec4.create(1, 1, 1, 1),
-					scalars: vec4.create(1, 0.1, 0, 0),
+					position: vec4.create(-2, -1, 0, 0.0),
+					color: vec4.create(1, 0.8, 0.4, 1),
+					scalars: vec4.create(0.4, 0.01, 0, 0),
 				},
 				{
-					position: vec4.create(-5, 14, 0, 1.0),
+					position: vec4.create(0, 16, -8, 1.0),
 					color: vec4.create(0, 0, 1, 1),
-					scalars: vec4.create(0, 0, 1, 0),
+					scalars: vec4.create(1, 0, atten, 0),
+				},
+				{
+					position: vec4.create(8, 16, -8, 1.0),
+					color: vec4.create(1, 0, 0, 1),
+					scalars: vec4.create(1, 0, atten, 0),
+				},
+				{
+					position: vec4.create(-8, 16, -8, 1.0),
+					color: vec4.create(0, 1, 0, 1),
+					scalars: vec4.create(1, 0, atten, 0),
+				},
+				{
+					position: vec4.create(0, 16, 8, 1.0),
+					color: vec4.create(1, 1, 0, 1),
+					scalars: vec4.create(1, 0, atten, 0),
+				},
+				{
+					position: vec4.create(8, 16, 8, 1.0),
+					color: vec4.create(0, 1, 1, 1),
+					scalars: vec4.create(1, 0, atten, 0),
+				},
+				{
+					position: vec4.create(-8, 16, 8, 1.0),
+					color: vec4.create(1, 0, 1, 1),
+					scalars: vec4.create(1, 0, atten, 0),
 				},
 			]
 		}
@@ -683,6 +710,7 @@ export class Renderer {
 		}
 
 		const commandEncoder = this.device.createCommandEncoder();
+		this.timing.start(commandEncoder);
 
 		const renderTargetView = this.renderTargetTexture.createView();
 		const depthView = this.depthTexture.createView();
@@ -749,7 +777,6 @@ export class Renderer {
 
 		renderPass.end();
 
-		this.timing.start(commandEncoder);
 		const commandBuffer = commandEncoder.finish();
 		this.device.queue.submit([commandBuffer]);
 		this.timing.finish();
@@ -780,6 +807,10 @@ export class Renderer {
 	setLightingUniformBuffer(desc) {
 		const lightsArrayOffset = 0;
 		for (let i = 0; i < maxLights; i++) {
+			const light = desc.lights[i];
+			if (light == undefined) {
+				break;
+			}
 			let lightData = new Float32Array(lightSize / 4);
 			let lightPositionData = new Float32Array(lightData.buffer, 0, 4);
 			let lightColorData = new Float32Array(lightData.buffer, 4 * 4, 4);
@@ -814,6 +845,8 @@ export class Renderer {
 					object.normalMatrix.byteLength);
 
 			}
+
+			debug.log(`Objects: ${this.objectInstanceCount}`);
 		}
 		catch (err) {
 

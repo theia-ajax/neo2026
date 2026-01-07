@@ -1,4 +1,4 @@
-const MAX_LIGHTS = 2;
+const MAX_LIGHTS = 16;
 
 const modeAlbedoTexture = 0;
 const modeNormalTexture = 1;
@@ -52,9 +52,8 @@ struct VertexOutput {
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 @group(1) @binding(0) var<uniform> lighting: LightingUniforms;
-
-// @group(1) @binding(0) var textureSampler: sampler;
-// @group(1) @binding(1) var diffuseMap: texture_2d<f32>;
+@group(2) @binding(0) var textureSampler: sampler;
+@group(2) @binding(1) var diffuseMap: texture_2d<f32>;
 
 @vertex
 fn vertex_main(
@@ -98,8 +97,8 @@ fn applyLight(
 	surfacePos: vec3f,
 	surfaceToCamera: vec3f) -> vec3f
 {
-	let matSpecular = 1.0;
-	let shininess = 0.3;
+	let matSpecular: f32 = 0.1;
+	let shininess: f32 = 0.2;
 	let matSpecularColor = vec3f(shininess, shininess, shininess);
 
 	var surfaceToLight: vec3f;
@@ -134,7 +133,7 @@ fn fragment_main(
 	let lights = array<Light, MAX_LIGHTS>();
 
 	// let surfaceColor = ((input.vertPosition + 1) / 2).xyz;
-	let surfaceColor = vec4f(1,0,1,1);
+	let surfaceColor = vec4f(1,1,1,1);
 
 	var linearColor = vec3f(0);
 	

@@ -20,6 +20,8 @@
     "@gltf-transform/extensions": "^4.2.1",
     "@gltf-transform/functions": "^4.2.1",
     "dat.gui": "^0.7.9",
-    "wgpu-matrix": "^3.4.0"
+    "wgpu-matrix": "^3.4.0",
+    "seedrandom": "^3.0.5",
+    "@types/seedrandom": "^3.0.8"
   }
 }
